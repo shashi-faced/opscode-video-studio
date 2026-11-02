@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "title": "Opscode Agent reel",
+  "format": "9:16",
+  "theme": "night-saffron",
+  "brand": { "name": "Opscode Agent", "logo": "assets/icon.png" },
+  "voice": { "provider": "edge", "voice": "en-IN-NeerjaExpressiveNeural", "rate": "+4%" },
+  "music": { "style": "indian-electronic", "volume": 0.5 },
+  "captions": true,
+  "scenes": [
+    {
+      "template": "title",
+      "kicker": "AI agents for builders",
+      "headline": "Your AI team. *On your desktop.*",
+      "subline": "Code, browse and automate in one app.",
+      "mascot": "robot",
+      "narration": "Meet Opscode Agent. Your AI team, right on your desktop."
+    },
+    {
+      "template": "feature",
+      "kicker": "Multi-agent",
+      "headline": "Many agents. *One app.*",
+      "image": "assets/subagents.webp",
+      "imageTitle": "Sub-Agents · running in parallel",
+      "chips": ["Build", "Plan", "Explore", "Chat"],
+      "narration": "Use many agents together. For big tasks, it splits the work into sub-agents that run in parallel."
+    },
+    {
+      "template": "feature",
+      "kicker": "Browser automation",
+      "headline": "It browses. *It gets it done.*",
+      "image": "assets/browser.webp",
+      "imageFrame": "plain",
+      "cursor": { "x": 0.79, "y": 0.65 },
+      "chips": ["navigate", "click", "type"],
+      "narration": "It opens a real browser, clicks, types, and completes the task for you."
+    },
+    {
+      "template": "feature",
+      "kicker": "Debug in the browser",
+      "headline": "Finds the bug. *Fixes it too.*",
+      "image": "assets/debug.webp",
+      "imageFrame": "plain",
+      "highlights": [
+        { "x": 0.08, "y": 0.426, "w": 0.91, "h": 0.058, "label": "console › TypeError" },
+        { "x": 0.08, "y": 0.49, "w": 0.91, "h": 0.058, "label": "network › POST 500" },
+        { "x": 0.08, "y": 0.688, "w": 0.91, "h": 0.058 }
+      ],
+      "tags": [{ "text": "✓ 14 tests passed", "tone": "ok", "at": 4.6 }],
+      "narration": "Something broken? It reads the browser console and network calls, finds the bug, fixes the code, and runs the tests."
+    },
+    {
+      "template": "split",
+      "kicker": "Personal agent",
+      "headline": "Works on *your system*",
+      "body": "Cleans up files, runs commands and sets reminders.",
+      "image": "assets/personal.webp",
+      "narration": "And your personal agent works right on your system. You ask, it's done."
+    },
+    {
+      "template": "cta",
+      "headline": "Opscode Agent",
+      "subline": "Made in India. For builders everywhere.",
+      "button": "Download for Linux",
+      "badges": ["Multi-agent", "Browser debug", "Local + cloud models"],
+      "narration": "Opscode Agent. Made in India. Download it today."
+    }
+  ]
+}

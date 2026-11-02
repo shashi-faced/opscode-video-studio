@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "title": "Opscode Agent ad",
+  "format": "16:9",
+  "theme": "night-saffron",
+  "brand": { "name": "Opscode Agent", "logo": "assets/icon.png" },
+  "voice": { "provider": "edge", "voice": "en-IN-PrabhatNeural", "rate": "+2%" },
+  "music": { "style": "indian-electronic", "volume": 0.5 },
+  "scenes": [
+    {
+      "template": "title",
+      "kicker": "Bengaluru · 02:14 AM",
+      "headline": "Production down. *Deadline kal subah.*",
+      "mascot": "dev",
+      "mascotMood": "worried",
+      "narration": "Two A.M. Production is down, and the deadline is tomorrow morning."
+    },
+    {
+      "template": "feature",
+      "kicker": "Meet Opscode Agent",
+      "headline": "Your *coding agent*",
+      "image": "assets/code.webp",
+      "imageTitle": "Coding · Agent Workspace",
+      "chips": ["read", "bash", "edit", "checkpoint", "PR"],
+      "narration": "Opscode reads your code, runs the tests, fixes the bug and opens the pull request."
+    },
+    {
+      "template": "bullets",
+      "kicker": "Why teams switch",
+      "headline": "Ship *faster*",
+      "items": ["Many agents work in parallel", "Real browser automation and debugging", "Local or cloud models, even free ones"],
+      "narration": "Many agents in parallel, a real browser, and any model you like."
+    },
+    {
+      "template": "stat",
+      "kicker": "Last night",
+      "items": [{ "value": "12 min", "label": "to find and fix the bug" }, { "value": "14", "label": "tests passing" }, { "value": "1", "label": "pull request opened" }],
+      "narration": "Twelve minutes later, the fix was ready."
+    },
+    {
+      "template": "quote",
+      "quote": "It found the bug while I was making *chai*.",
+      "author": "Priya S.",
+      "role": "Frontend developer",
+      "mascot": "dev",
+      "narration": "Developers love it."
+    },
+    {
+      "template": "cta",
+      "headline": "Opscode Agent",
+      "subline": "India's coding agent. Your personal assistant. One app.",
+      "button": "Download for Linux",
+      "badges": ["Made in India", "Multi-agent", "Browser debug"],
+      "narration": "Opscode Agent. Code karo, befikar."
+    }
+  ]
+}

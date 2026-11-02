@@ -1,0 +1,38 @@
+{
+  "name": "@opscode/video-studio",
+  "version": "0.1.0",
+  "description": "Opscode Video Studio agent: storyboard JSON to animated MP4 with voiceover, music and captions.",
+  "type": "module",
+  "bin": {
+    "opscode-video": "bin/opscode-video.mjs"
+  },
+  "main": "src/index.mjs",
+  "files": [
+    "bin",
+    "src",
+    "agent",
+    "fonts",
+    "examples/*.json",
+    "examples/assets",
+    "README.md",
+    "plans"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "example:reel": "node bin/opscode-video.mjs render examples/reel.json",
+    "example:ad": "node bin/opscode-video.mjs render examples/ad.json"
+  },
+  "dependencies": {
+    "msedge-tts": "^2.1.1",
+    "playwright-core": "^1.48.0"
+  },
+  "license": "MIT",
+  "author": "Opscode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shashi-faced/opscode-video-studio.git"
+  }
+}

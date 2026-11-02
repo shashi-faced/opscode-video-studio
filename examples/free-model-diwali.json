@@ -1,0 +1,90 @@
+{
+    "version": 1,
+    "title": "Sharma Sweets Jaipur",
+    "format": "9:16",
+    "theme": "warm-paper",
+    "accent": "#e63946",
+    "brand": {
+        "name": "Sharma Sweets",
+        "logo": null
+    },
+    "voice": {
+        "provider": "edge",
+        "voice": "hi-IN-SwaraNeural",
+        "rate": "+0%"
+    },
+    "music": {
+        "style": "indian-electronic",
+        "volume": 0.5
+    },
+    "captions": true,
+    "scenes": [
+        {
+            "template": "title",
+            "kicker": "Diwali Festive Sale",
+            "headline": "Sharma Sweets *Jaipur*",
+            "subline": "30% off on all mithai until 15 Nov. Free home delivery above \u20b9999. Open 8 AM\u201311 PM.",
+            "mascot": "founder",
+            "mascotMood": "happy",
+            "transition": "fade",
+            "narration": "Sharma Sweets brings the festive spirit to Jaipur with a grand Diwali sale."
+        },
+        {
+            "template": "bullets",
+            "kicker": "Offer Highlights",
+            "headline": "Sweet Deals Await",
+            "items": [
+                "30% off all mithai",
+                "Free home delivery above \u20b9999",
+                "Open 8 AM to 11 PM daily"
+            ],
+            "mascot": "none",
+            "transition": "slide",
+            "narration": "Enjoy massive discounts, doorstep delivery, and long hours of sweetness."
+        },
+        {
+            "template": "stat",
+            "kicker": "Your Savings",
+            "headline": "Save Big This Diwali",
+            "items": [
+                {
+                    "value": "30%",
+                    "label": "Off on sweets"
+                },
+                {
+                    "value": "Free",
+                    "label": "Delivery above \u20b9999"
+                },
+                {
+                    "value": "12h",
+                    "label": "Open daily"
+                }
+            ],
+            "mascot": "none",
+            "transition": "zoom",
+            "narration": "Thirty percent off, free delivery, and 12 hours of happiness."
+        },
+        {
+            "template": "quote",
+            "quote": "The mithai at Sharma Sweets is the best in Jaipur!",
+            "author": "Ravi Kumar",
+            "role": "Regular Customer",
+            "mascot": "none",
+            "transition": "fade",
+            "narration": "Customers love the authentic flavors and festive offers."
+        },
+        {
+            "template": "cta",
+            "headline": "Sharma Sweets",
+            "subline": "Visit us or order online for your Diwali sweets.",
+            "button": "Order Now",
+            "badges": [
+                "30% OFF",
+                "Free Delivery"
+            ],
+            "mascot": "none",
+            "transition": "slide",
+            "narration": "Order your festive sweets today and get the Diwali discount."
+        }
+    ]
+}
