@@ -2,12 +2,13 @@
 // templatesDoc(type) returns only what that kind of video needs, which keeps it short for small models.
 import { TEMPLATES, COMMON_FIELDS, TOP_FIELDS, THEMES, MUSIC_STYLES, VOICES, MASCOTS, FORMATS, VIDEO_TYPES, CHARACTER_KINDS, POSES, CHARACTER_MOODS, POSITIONS, ENTRANCES, BACKGROUNDS, TIMES } from './schema/spec.mjs';
 import { TYPE_RECIPES, TYPE_ALIASES } from './schema/types.mjs';
+import { PLATFORMS, resolvePlatform } from './schema/platforms.mjs';
 
 function fieldLine(name, f) {
   let t = f.type;
   if (f.type === 'str') t = `text ≤${f.max}`;
   if (f.type === 'num') t = `number ${f.min}–${f.max}`;
-  if (f.type === 'enum') t = f.values.length > 8 ? 'one of the list below' : f.values.join(' | ');
+  if (f.type === 'enum') t = name === 'platform' ? 'see Platforms above' : f.values.length > 8 ? 'one of the list below' : f.values.join(' | ');
   if (f.type === 'list') t = `list (max ${f.max})${f.of?.type === 'str' ? ' of short text' : f.of?.type === 'obj' ? ' of {' + Object.keys(f.of.fields).join(', ') + '}' : ''}`;
   if (f.type === 'obj') t = `{ ${Object.keys(f.fields).join(', ')} }`;
   if (f.type === 'path') t = 'image file path';
@@ -18,7 +19,7 @@ export const EXAMPLE = {
   version: 1,
   type: 'ad',
   title: 'My product reel',
-  format: '9:16',
+  platform: 'insta-reel',
   theme: 'night-saffron',
   brand: { name: 'My Product', logo: 'shots/logo.png' },
   voice: { provider: 'edge', voice: 'en-IN-NeerjaExpressiveNeural', rate: '+4%' },
@@ -67,8 +68,9 @@ export function resolveType(type) {
  * Storyboard reference. With a video type, only that type's recipe, templates and example.
  * @param type optional video type (or alias)
  */
-export function templatesDoc(type) {
+export function templatesDoc(type, platform) {
   const t = resolveType(type);
+  const pl = resolvePlatform(platform);
   const recipe = t ? TYPE_RECIPES[t] : null;
   const names = recipe ? recipe.templates : Object.keys(TEMPLATES);
   const usesCharacters = names.some(n => n === 'story' || n === 'dialogue');
@@ -87,6 +89,17 @@ export function templatesDoc(type) {
   } else {
     out.push('Tip: call video_templates with type=<one of the above> for a shorter, focused reference.');
   }
+
+  out.push('\n## Platforms (set "platform"; it sets the frame size, safe zones, captions and extra files)');
+  if (pl) {
+    const P = PLATFORMS[pl];
+    out.push(`- Use "platform": "${pl}" (${P.label}). Do not set "format".${P.maxSec ? ` At most ${P.maxSec} s.` : ''}${P.warnSec ? ` Best under ${P.warnSec} s.` : ''}`);
+    out.push(`- Captions default to "${P.captions.style}". The engine keeps text out of the areas the app covers.`);
+  } else {
+    for (const [k, P] of Object.entries(PLATFORMS)) out.push(`- ${k}: ${P.label}${P.maxSec ? `, max ${P.maxSec} s` : ''}`);
+    out.push('- Pick from the user\'s words: Instagram/reel = insta-reel, YouTube = youtube, Shorts = youtube-short, WhatsApp = whatsapp-status. Then do not set "format".');
+  }
+  out.push('- captions: true | false | { "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top" }. pop = 1-3 big words at a time, timed to the voice (reels); karaoke = the spoken word lights up.');
 
   out.push('\n## Top-level fields');
   for (const [k, f] of Object.entries(TOP_FIELDS)) {

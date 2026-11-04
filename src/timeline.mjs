@@ -37,6 +37,109 @@ export function captionChunks(text, maxWords = 7) {
 }
 
 /**
+ * Narration split into words, keeping *highlight* spans that may cover several words.
+ * @returns [{ text, html }]
+ */
+export function captionTokens(text) {
+  const out = [];
+  let marked = false;
+  for (const raw of String(text ?? '').trim().split(/\s+/).filter(Boolean)) {
+    let html = '', plainText = '';
+    for (const [k, seg] of raw.split('*').entries()) {
+      if (k > 0) marked = !marked;
+      if (!seg) continue;
+      plainText += seg;
+      html += marked ? `<mark>${escapeHtml(seg)}</mark>` : escapeHtml(seg);
+    }
+    if (plainText) out.push({ text: plainText, html });
+  }
+  return out;
+}
+
+const norm = (s) => String(s).normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}\p{M}%₹$€£]/gu, '');
+
+/**
+ * Give each caption token a time window from the TTS word timings (seconds from the part start).
+ * Tokens the voice did not report (punctuation, odd spellings) are placed between their neighbours.
+ * Without timings, the window is shared out by word length.
+ */
+export function alignWords(tokens, words, span) {
+  const n = tokens.length;
+  const times = new Array(n).fill(null);
+  if (words && words.length) {
+    const b = words.map(w => ({ ...w, n: norm(w.text) })).filter(w => w.n);
+    let j = 0;
+    tokens.forEach((t, i) => {
+      const tn = norm(t.text);
+      if (!tn) return;
+      for (let k = j; k < Math.min(b.length, j + 4); k++) {
+        if (!(tn.startsWith(b[k].n) || b[k].n.startsWith(tn))) continue;
+        // One written word may be several spoken ones ("₹999-only"): take boundaries while they fit.
+        let acc = b[k].n, end = b[k].end, m = k + 1;
+        while (acc.length < tn.length && m < b.length && tn.startsWith(acc + b[m].n)) { acc += b[m].n; end = b[m].end; m++; }
+        times[i] = [b[k].start, end];
+        j = m;
+        break;
+      }
+    });
+  }
+  // Fill gaps by length between known neighbours (or the whole span).
+  const len = tokens.map(t => Math.max(1, plain(t.text).length));
+  let i = 0;
+  while (i < n) {
+    if (times[i]) { i++; continue; }
+    let k = i;
+    while (k < n && !times[k]) k++;
+    const from = i > 0 ? times[i - 1][1] : 0;
+    const to = k < n ? times[k][0] : Math.max(from, span);
+    const total = len.slice(i, k).reduce((a, c) => a + c, 0);
+    let t = from;
+    for (let q = i; q < k; q++) { const d = (to - from) * len[q] / total; times[q] = [t, t + d]; t += d; }
+    i = k;
+  }
+  return times.map(([a, b]) => [+a.toFixed(3), +Math.max(a + 0.05, b).toFixed(3)]);
+}
+
+/**
+ * Caption chunks with times. line: up to 7 words; karaoke: same, with per-word times;
+ * pop: 1-3 words, breaking at punctuation and pauses.
+ */
+export function timedCaptions(text, words, partStart, span, style = 'line') {
+  const tokens = captionTokens(text);
+  if (!tokens.length) return [];
+  const times = alignWords(tokens, words, span);
+  const maxWords = style === 'pop' ? 3 : 7;
+  const groups = [];
+  let cur = [];
+  tokens.forEach((t, i) => {
+    cur.push(i);
+    const ends = /[.!?।]$/.test(t.text) || (/[,;:—]$/.test(t.text) && (style === 'pop' || cur.length >= 3));
+    const pause = i + 1 < tokens.length && times[i + 1][0] - times[i][1] > 0.35;
+    if (ends || pause || cur.length >= maxWords) { groups.push(cur); cur = []; }
+  });
+  if (cur.length) {
+    const last = groups.at(-1);
+    if (style !== 'pop' && cur.length <= 2 && last && last.length + cur.length <= maxWords + 2) last.push(...cur);
+    else groups.push(cur);
+  }
+  return groups.map((g, k) => {
+    const start = partStart + times[g[0]][0];
+    const next = groups[k + 1] ? partStart + times[groups[k + 1][0]][0] : null;
+    const lastEnd = partStart + times[g.at(-1)][1];
+    // Stay up until the next chunk unless there is a real pause.
+    const end = next != null && next - lastEnd < 0.6 ? next : lastEnd + 0.3;
+    const c = { start: +Math.max(partStart, start - 0.05).toFixed(3), end: +end.toFixed(3) };
+    if (style === 'line') c.html = g.map(i => tokens[i].html).join(' ');
+    else {
+      const tidy = (h) => (style === 'pop' ? h.replace(/[,;:—](<\/mark>)?$/, '$1') : h);
+      c.html = g.map(i => `<b class="w">${tidy(tokens[i].html)}</b>`).join(' ');
+      c.words = g.map(i => [+(partStart + times[i][0]).toFixed(3), +(partStart + times[i][1]).toFixed(3)]);
+    }
+    return c;
+  });
+}
+
+/**
  * What is spoken in a scene, in order: the narration (narrator voice), then each dialogue
  * line (the speaker's voice). The voice track of a scene is these parts joined with PART_GAP.
  */
@@ -52,7 +155,8 @@ export function speechParts(sc) {
  * @param voiceLengths array (per scene) of measured voice seconds, or null where none
  * @param partLengths  array (per scene) of measured seconds per speech part, or null
  */
-export function buildTimeline(storyboard, voiceLengths = [], partLengths = []) {
+export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], narrationWords = []) {
+  const capStyle = storyboard.captions && typeof storyboard.captions === 'object' ? storyboard.captions.style || 'line' : 'line';
   const scenes = [];
   let t = 0;
   storyboard.scenes.forEach((sc, i) => {
@@ -78,16 +182,7 @@ export function buildTimeline(storyboard, voiceLengths = [], partLengths = []) {
     const captions = [];
     const narrPart = timed.find(p => p.kind === 'narration');
     if (narr && narrPart && storyboard.captions !== false) {
-      const chunks = captionChunks(sc.narration);
-      const lens = chunks.map(p => plain(p).length);
-      const total = lens.reduce((a, b) => a + b, 0) || 1;
-      const span = narrPart.end - narrPart.start;
-      let ct = narrPart.start;
-      chunks.forEach((p, j) => {
-        const d = span * lens[j] / total;
-        captions.push({ start: +ct.toFixed(3), end: +(j === chunks.length - 1 ? ct + d + 0.25 : ct + d).toFixed(3), html: markup(p) });
-        ct += d;
-      });
+      captions.push(...timedCaptions(sc.narration, narrationWords[i], narrPart.start, narrPart.end - narrPart.start, capStyle));
     }
     scenes.push({ index: i, template: sc.template, start, end, duration: +duration.toFixed(3), voiceStart, voiceLength: measured ?? null, estimated: measured == null && parts.length > 0, captions, parts: timed });
     t += duration;

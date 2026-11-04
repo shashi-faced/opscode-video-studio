@@ -37,12 +37,27 @@ Set `"type"` in the storyboard; it picks the scene recipe, theme and music.
 
 See [examples/kids-story.json](examples/kids-story.json) for a complete Hindi story.
 
+## Platforms and captions
+
+Set `"platform"` to where the video will be posted. It sets the frame size, keeps text out of the areas the app covers with its own buttons, picks the caption style and writes extra files next to the MP4.
+
+| `platform` | Frame | Captions | Extra files |
+|---|---|---|---|
+| `insta-reel` | 1080×1920 | pop | cover, 3:4 profile-grid cover |
+| `youtube` | 1920×1080 | line | 1280×720 thumbnail, title/description with chapters |
+| `youtube-short`, `insta-story`, `tiktok` | 1080×1920 | pop | cover |
+| `insta-post` | 1080×1350 (4:5) | line | cover |
+| `whatsapp-status` | 1080×1920 | pop | split into 60 s parts |
+| `square`, `linkedin` | 1:1 / 16:9 | line | cover / thumbnail |
+
+`captions` is `true`, `false`, or `{ "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top" }`. Captions are timed to the spoken words using the voice's word timings: `pop` shows 1–3 big words at a time (reels), `karaoke` lights up the word being spoken. Examples: [insta-reel.json](examples/insta-reel.json), [youtube-ad.json](examples/youtube-ad.json).
+
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `doctor [--install]` | Check / install Chrome, ffmpeg, voice access |
-| `templates [type]` | Storyboard reference (what the agent reads), optionally for one video type |
+| `templates [type] [platform]` | Storyboard reference (what the agent reads), optionally for one video type and platform |
 | `init <dir> [--format 9:16]` | Starter storyboard |
 | `validate <file>` | Errors with exact fixes; auto-corrects common slips |
 | `check <file>` | Layout checks + `contact-sheet.jpg` |

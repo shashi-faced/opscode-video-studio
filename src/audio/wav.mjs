@@ -21,13 +21,19 @@ export function decodeStereo(file) {
 }
 
 export function trimSilence(x, db = -45) {
+  return trimSilenceLead(x, db).samples;
+}
+
+/** Trim silence at both ends; `lead` is the seconds cut from the start (to shift word timings). */
+export function trimSilenceLead(x, db = -45) {
   const th = Math.pow(10, db / 20);
   let a = 0, b = x.length - 1;
   while (a < x.length && Math.abs(x[a]) < th) a++;
   while (b > a && Math.abs(x[b]) < th) b--;
   // keep 30 ms of air on both ends
   const pad = Math.round(0.03 * SR);
-  return x.slice(Math.max(0, a - pad), Math.min(x.length, b + pad));
+  const from = Math.max(0, a - pad);
+  return { samples: x.slice(from, Math.min(x.length, b + pad)), lead: from / SR };
 }
 
 export function normalisePeak(x, peak = 0.92) {

@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { TEMPLATES, COMMON_FIELDS, TOP_FIELDS, DEFAULTS, FORMATS, CHARACTER_KINDS, POSES, CHARACTER_MOODS, POSITIONS, ENTRANCES, SIZES, BACKGROUNDS, TIMES, VIDEO_TYPES } from './spec.mjs';
 import { TYPE_RECIPES, TYPE_ALIASES } from './types.mjs';
+import { PLATFORMS, PLATFORM_IDS, resolvePlatform } from './platforms.mjs';
+import { CAPTION_STYLES, CAPTION_POSITIONS } from './spec.mjs';
 import { KIND_ALIASES } from '../compiler/characters.mjs';
 import { BACKGROUND_ALIASES, TIME_ALIASES } from '../compiler/backgrounds.mjs';
 
@@ -21,7 +23,9 @@ const FORMAT_ALIASES = {
   '16x9': '16:9', '16/9': '16:9', landscape: '16:9', youtube: '16:9', wide: '16:9', horizontal: '16:9',
   '9x16': '9:16', '9/16': '9:16', portrait: '9:16', vertical: '9:16', reel: '9:16', reels: '9:16', shorts: '9:16', story: '9:16', tiktok: '9:16',
   '1x1': '1:1', '1/1': '1:1', square: '1:1', post: '1:1',
+  '4x5': '4:5', '4/5': '4:5', 'portrait-post': '4:5', feed: '4:5',
 };
+const CAPTION_ALIASES = { word: 'karaoke', words: 'karaoke', highlight: 'karaoke', 'word-by-word': 'pop', big: 'pop', bold: 'pop', reel: 'pop', tiktok: 'pop', subtitle: 'line', subtitles: 'line', sentence: 'line', normal: 'line', classic: 'line', default: 'line' };
 const TEMPLATE_ALIASES = {
   'story-scene': 'story', cartoon: 'story', narration: 'story', 'title-card': 'story', 'the-end': 'story', scene: 'story', animation: 'story', storybook: 'story',
   conversation: 'dialogue', talk: 'dialogue', chat: 'dialogue', dialog: 'dialogue', speech: 'dialogue', conversations: 'dialogue',
@@ -130,8 +134,19 @@ export function normalise(input, warnings) {
     if (v && v !== sb.type) warn('type', `"${sb.type}" changed to "${v}"`);
     if (v) sb.type = v;
   }
-  // The video type picks the look and sound unless the storyboard sets them.
+  // The platform sets the frame; an explicit "format" still wins.
+  if (sb.platform !== undefined) {
+    const pl = resolvePlatform(sb.platform);
+    if (pl && pl !== sb.platform) { warn('platform', `"${sb.platform}" changed to "${pl}"`); sb.platform = pl; }
+  }
   const recipe = TYPE_RECIPES[sb.type];
+  if (sb.platform === undefined && recipe?.platform && sb.format === undefined) sb.platform = recipe.platform;
+  const plat = PLATFORMS[sb.platform];
+  if (plat) {
+    if (sb.format === undefined) sb.format = plat.format;
+    else if (sb.format !== plat.format) warn('format', `"${sb.format}" kept, but ${plat.label} expects ${plat.format}`);
+  }
+  // The video type picks the look and sound unless the storyboard sets them.
   if (recipe) {
     if (sb.theme === undefined) sb.theme = recipe.theme;
     if (sb.music === undefined) sb.music = { style: recipe.music };
@@ -160,6 +175,21 @@ export function normalise(input, warnings) {
   for (const [k, v] of Object.entries(DEFAULTS)) {
     if (sb[k] === undefined) sb[k] = structuredClone(v);
     else if (isObj(v) && isObj(sb[k])) sb[k] = { ...v, ...sb[k] };
+  }
+
+  // captions: true | false | "pop" | { style, position } -> false or a full object.
+  if (sb.captions !== false) {
+    let c = sb.captions;
+    if (c === true || c === undefined) c = {};
+    else if (typeof c === 'string') c = { style: c };
+    if (isObj(c)) {
+      c = { ...c };
+      if (typeof c.style === 'string') { const v = aliasOf(c.style, CAPTION_STYLES, CAPTION_ALIASES); if (v && v !== c.style) { warn('captions.style', `"${c.style}" changed to "${v}"`); c.style = v; } }
+      if (typeof c.position === 'string') { const v = aliasOf(c.position, CAPTION_POSITIONS, { center: 'middle', centre: 'middle', mid: 'middle', down: 'bottom', up: 'top' }); if (v) c.position = v; }
+      if (c.style === undefined) c.style = plat?.captions?.style || 'line';
+      if (c.position === undefined) c.position = 'bottom';
+      sb.captions = c;
+    }
   }
 
   if (!Array.isArray(sb.scenes)) return sb;
@@ -273,6 +303,8 @@ export function validate(input, { baseDir = process.cwd() } = {}) {
   for (const [k, spec] of Object.entries(TOP_FIELDS)) {
     if (sb[k] === undefined) { if (spec.required) errors.push({ path: k, message: `missing "${k}"`, fix: `add "${k}": [ ... ] with 2-16 scenes` }); continue; }
     if (k === 'scenes') continue;
+    if (k === 'captions' && sb[k] === false) continue;
+    if (k === 'platform' && !PLATFORM_IDS.includes(sb[k])) { errors.push({ path: 'platform', message: `unknown platform "${sb[k]}"`, fix: `use one of: ${PLATFORM_IDS.join(', ')}` }); continue; }
     checkField(spec, sb[k], k, errors, warnings, ctx);
   }
   for (const k of Object.keys(sb)) if (!(k in TOP_FIELDS)) warnings.push({ path: k, message: `unknown field "${k}" ignored` });
@@ -319,6 +351,13 @@ export function validate(input, { baseDir = process.cwd() } = {}) {
       if (n > 4) errors.push({ path: `scenes[${i}]`, message: `${n} characters in one scene, limit is 4`, fix: 'split the scene in two' });
       if (s.text && Array.isArray(s.lines) && s.lines.length) warnings.push({ path: `scenes[${i}]`, message: 'a scene with both "text" and "lines" can get crowded; prefer one of them' });
     });
+    const plat = PLATFORMS[sb.platform];
+    if (plat && (plat.maxSec || plat.warnSec)) {
+      const words = sb.scenes.reduce((n, s) => n + (isObj(s) ? String(s.narration || '').split(/\s+/).filter(Boolean).length + (Array.isArray(s.lines) ? s.lines.reduce((m, l) => m + String(l?.text || '').split(/\s+/).filter(Boolean).length, 0) : 0) : 0), 0);
+      const est = Math.round(words / 2.5 + sb.scenes.length * 1.2);
+      if (plat.maxSec && est > plat.maxSec) errors.push({ path: 'scenes', message: `about ${est} s of speech; ${plat.label} allows at most ${plat.maxSec} s`, fix: `cut scenes or shorten narration to stay under ${plat.maxSec} s` });
+      else if (plat.warnSec && est > plat.warnSec) warnings.push({ path: 'scenes', message: `about ${est} s long; ${plat.label} works best under ${plat.warnSec} s` });
+    }
     const voiced = sb.voice?.provider !== 'none';
     if (voiced && !sb.scenes.some(s => isObj(s) && (s.narration || (Array.isArray(s.lines) && s.lines.length)))) warnings.push({ path: 'scenes', message: 'no scene has narration, so there will be no voice' });
   }

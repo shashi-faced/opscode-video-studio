@@ -8,6 +8,7 @@
   const capEl = stage.querySelector('.cap span');
   const bars = [...stage.querySelectorAll('.prog i')];
   let cur = -1, lastCap = null;
+  const popCaps = stage.classList.contains('cap-pop');
 
   function fitOne(el, scale) {
     const base = +el.dataset.max * U;
@@ -108,9 +109,22 @@
     const local = Math.max(0, ms - sc.start * 1000);
     for (const a of sceneEls[i].getAnimations({ subtree: true })) { a.pause(); a.currentTime = local; }
     if (amb) for (const a of amb.getAnimations({ subtree: true })) { a.pause(); a.currentTime = ms; }
-    let cap = '';
-    for (const c of sc.captions) if (ms >= c.start * 1000 && ms < c.end * 1000) cap = c.html;
+    let capObj = null;
+    for (const c of sc.captions) if (ms >= c.start * 1000 && ms < c.end * 1000) capObj = c;
+    const cap = capObj ? capObj.html : '';
     if (capEl && cap !== lastCap) { capEl.innerHTML = cap; lastCap = cap; }
+    if (capEl && capObj && capObj.words) {
+      // Light up the word being spoken; earlier words stay lit (karaoke).
+      const t = ms / 1000;
+      const ws = capEl.querySelectorAll('.w');
+      let on = -1;
+      capObj.words.forEach(([a], k) => { if (t >= a) on = k; });
+      ws.forEach((w, k) => { w.classList.toggle('on', k === on); w.classList.toggle('past', k < on); });
+      if (popCaps) {
+        const a = Math.max(0, Math.min(1, (t - capObj.start) / 0.14));
+        capEl.style.transform = `scale(${(0.82 + 0.18 * (1 - Math.pow(1 - a, 3))).toFixed(3)})`;
+      }
+    }
     bars.forEach((b, k) => {
       const s = TL.scenes[k];
       b.style.width = k < i ? '100%' : k > i ? '0%' : Math.min(100, (ms - s.start * 1000) / (s.duration * 10)) + '%';
@@ -147,6 +161,17 @@
       for (const { name, r } of rects) {
         if (area(r) < 4) continue;
         if (r.left < sr.left - 2 || r.top < sr.top - 2 || r.right > sr.right + 2 || r.bottom > sr.bottom + 2) add('off-stage', name, `${name} goes outside the video frame`, { severity: 'error' });
+      }
+      // Text under the platform's own buttons and captions (Reels/Shorts safe zone).
+      if (stage.dataset.platform) {
+        const cs = getComputedStyle(stage), px = (v) => parseFloat(cs.getPropertyValue(v)) || 0;
+        const st = px('--st'), sb = px('--sb'), sl = px('--sl'), srr = px('--sr'), srf = px('--srf');
+        for (const { name, r } of rects) {
+          if (SOFT.has(name) || name === 'image' || area(r) < 4) continue;
+          const y0 = r.top - sr.top, y1 = r.bottom - sr.top, x0 = r.left - sr.left, x1 = r.right - sr.left;
+          const where = y0 < st - 4 ? 'top' : y1 > sr.height - sb + 4 ? 'bottom' : x0 < sl - 4 ? 'left' : (x1 > sr.width - srr + 4 && y1 > srf) ? 'right' : '';
+          if (where) add('in-unsafe-zone', name, `the ${name} is in the ${where} area that ${stage.dataset.platform} covers with its own buttons or text`, { severity: 'warning', side: where });
+        }
       }
       for (let a = 0; a < rects.length; a++) for (let b = a + 1; b < rects.length; b++) {
         const A = rects[a], B = rects[b];

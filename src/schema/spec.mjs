@@ -1,7 +1,11 @@
 // Single source of truth for the storyboard format.
 // Used by the validator, the normaliser, `templates` docs and the JSON Schema export.
 
-export const FORMATS = ['16:9', '9:16', '1:1'];
+import { PLATFORM_IDS } from './platforms.mjs';
+
+export const FORMATS = ['16:9', '9:16', '1:1', '4:5'];
+export const CAPTION_STYLES = ['line', 'karaoke', 'pop'];
+export const CAPTION_POSITIONS = ['bottom', 'middle', 'top'];
 export const THEMES = ['night-saffron', 'clean-light', 'midnight-neon', 'corporate-blue', 'warm-paper', 'storybook', 'festive'];
 export const MASCOTS = ['robot', 'dev', 'founder'];
 export const MOODS = ['happy', 'worried'];
@@ -199,13 +203,17 @@ export const TOP_FIELDS = {
   version: num(1, 1),
   type: enm(VIDEO_TYPES, { doc: 'kind of video: ad, demo, explainer, story, reel, howto, greeting, announcement. Sets the scene recipe, theme and music' }),
   title: str(80, { doc: 'name of the video; also used for the output file name' }),
-  format: enm(FORMATS, { doc: '16:9 YouTube/website, 9:16 Reels/Shorts, 1:1 feed post' }),
+  platform: enm(PLATFORM_IDS, { doc: 'where it will be posted: sets frame size, safe zones, caption style and extra files (thumbnail, cover, chapters)' }),
+  format: enm(FORMATS, { doc: '16:9 YouTube/website, 9:16 Reels/Shorts, 1:1 square, 4:5 feed post. Usually set by "platform"' }),
   theme: enm(THEMES),
   accent: { type: 'color', doc: 'highlight colour, e.g. #ff9a3c' },
   brand: obj({ name: str(40), logo: { type: 'path' } }),
   voice: obj({ provider: enm(VOICE_PROVIDERS), voice: str(60), rate: str(8, { doc: 'e.g. +4% or -6%' }) }),
   music: obj({ style: enm(MUSIC_STYLES), volume: num(0, 1), file: { type: 'path', doc: 'your own music file instead of generated music' } }),
-  captions: { type: 'bool' },
+  captions: obj({
+    style: enm(CAPTION_STYLES, { doc: 'line: sentence at the bottom; karaoke: the spoken word lights up; pop: 1-3 big words at a time (reels)' }),
+    position: enm(CAPTION_POSITIONS),
+  }, { doc: 'true, false, or { style, position }. Default depends on the platform' }),
   fps: num(12, 60),
   cast: list(obj({
     id: str(24, { required: true, doc: 'short id used in scenes, e.g. "miko"' }),
@@ -236,4 +244,6 @@ export const STAGE = {
   '16:9': { width: 1920, height: 1080, cls: 'f-16x9' },
   '9:16': { width: 1080, height: 1920, cls: 'f-9x16' },
   '1:1': { width: 1080, height: 1080, cls: 'f-1x1' },
+  // 4:5 uses the square layout rules with more height.
+  '4:5': { width: 1080, height: 1350, cls: 'f-1x1 f-4x5' },
 };

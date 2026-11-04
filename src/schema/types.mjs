@@ -48,7 +48,7 @@ export const TYPE_RECIPES = {
   reel: {
     label: 'Reel / Short',
     use: 'Fast vertical video for Instagram, YouTube Shorts, WhatsApp status.',
-    theme: 'midnight-neon', music: 'indian-electronic', format: '9:16',
+    theme: 'midnight-neon', music: 'indian-electronic', format: '9:16', platform: 'insta-reel',
     templates: ['title', 'story', 'dialogue', 'bullets', 'stat', 'feature', 'quote', 'cta'],
     first: ['title', 'story'], last: ['cta', 'story'],
     scenes: '4-6 scenes, 15-30 s',

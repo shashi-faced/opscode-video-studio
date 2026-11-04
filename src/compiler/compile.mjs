@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { STAGE } from '../schema/spec.mjs';
+import { PLATFORMS, safePixels } from '../schema/platforms.mjs';
 import { resolveTheme, themeCss, fontFiles } from './themes.mjs';
 import { TEMPLATE_HTML, TEMPLATE_CSS } from './templates.mjs';
 import { imageSize } from '../util/imagesize.mjs';
@@ -11,7 +12,7 @@ import { stageLayout } from './backgrounds.mjs';
 import { escapeHtml } from '../timeline.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FORMAT_INDEX = { '16:9': 0, '9:16': 1, '1:1': 2 };
+const FORMAT_INDEX = { '16:9': 0, '9:16': 1, '1:1': 2, '4:5': 2 };
 
 export function compile(storyboard, timeline, { baseDir, buildDir }) {
   fs.mkdirSync(path.join(buildDir, 'assets'), { recursive: true });
@@ -50,6 +51,12 @@ export function compile(storyboard, timeline, { baseDir, buildDir }) {
     if (c.name) cast.set(String(c.name).toLowerCase(), { ...c, id: String(c.id).toLowerCase() });
   }
   const layout = stageLayout(stage.width, stage.height);
+  // Platform: safe zone kept free of text, caption style, progress bar.
+  const plat = PLATFORMS[storyboard.platform];
+  const safe = safePixels(storyboard.platform, stage.width, stage.height);
+  const cap = storyboard.captions || null;
+  const stageCls = [stage.cls, cap ? `cap-${cap.style} cap-${cap.position}` : '', plat && plat.progress === false ? 'no-prog' : ''].filter(Boolean).join(' ');
+  const safeVars = `--st:${safe.top}px;--sb:${safe.bottom}px;--sl:${safe.left}px;--sr:${safe.right}px;--srf:${safe.rightFrom}px`;
   const scenesHtml = storyboard.scenes.map((sc, i) => {
     const ctx = { index: i, fi: FORMAT_INDEX[storyboard.format], asset, brandLogo, format: storyboard.format, cast, layout };
     const inner = TEMPLATE_HTML[sc.template](sc, ctx);
@@ -70,9 +77,9 @@ export function compile(storyboard, timeline, { baseDir, buildDir }) {
 <style>${fonts}
 ${themeCss(theme)}
 html,body{margin:0;background:#000}
-#stage{width:${stage.width}px;height:${stage.height}px;--ground:${layout.ground}px;--chh:${layout.chh}px}
+#stage{width:${stage.width}px;height:${stage.height}px;--ground:${layout.ground}px;--chh:${layout.chh}px;${safeVars}}
 ${TEMPLATE_CSS}</style></head>
-<body><div id="stage" class="${stage.cls}"><div class="amb">${stars}<div class="blob"></div><div class="blob b2"></div></div>
+<body><div id="stage" class="${stageCls}" data-platform="${storyboard.platform || ''}"><div class="amb">${stars}<div class="blob"></div><div class="blob b2"></div></div>
 ${brand}${prog}
 ${scenesHtml}
 <div class="cap"><span></span></div></div>

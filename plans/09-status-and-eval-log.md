@@ -34,6 +34,17 @@
 - QA: bubbles off-stage, text covering a character.
 - Test render: examples/kids-story.json (Hindi, 3 characters, 8 scenes) → 52 s 1080p in 3 min 15 s; 21 tests pass.
 
+## v0.3.0 (2026-11-04): platforms and word captions (plan 10, Phase A)
+
+- `platform` field (`schema/platforms.mjs`): youtube, youtube-short, insta-reel, insta-post, insta-story, whatsapp-status, tiktok, square, linkedin, with aliases ("Insta Reel", "yt shorts", "WhatsApp"). Sets format, caption style, progress bar and extras; an explicit `format` still wins. Type `reel` defaults to insta-reel.
+- New 4:5 format (1080×1350), using the square layout rules.
+- Safe zones: stage CSS vars `--st/--sb/--sl/--sr`; content box, captions, brand and story text use `max(normal, safe)`, so old storyboards without a platform render exactly as before. QA check `in-unsafe-zone`.
+- Word timings: Edge TTS word boundaries saved next to each cached clip (`*.words.json`), shifted by the trimmed lead-in. `alignWords` maps them to the written words (punctuation and highlight spans kept; unmatched words interpolated).
+- Caption styles: `line` (now word-timed), `karaoke` (spoken word lights up), `pop` (1–3 big outlined words, pop-in, current word yellow). Positions bottom/middle/top.
+- Extras: cover (first scene settled, no caption), 3:4 profile-grid crop, YouTube 1280×720 thumbnail, description .txt with chapters (≥ 3, each ≥ 10 s, first at 0:00), WhatsApp 60 s parts (keyframes forced at cut points, split without re-encode).
+- Length: validator estimates speech length per platform (error over the max); QA and render report the real length.
+- Test renders: examples/insta-reel.json, 41.5 s in 79 s, pop captions in sync, text clear of the safe zones; youtube-ad.json with thumbnail + description; 4:5 karaoke. 32 tests pass.
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.

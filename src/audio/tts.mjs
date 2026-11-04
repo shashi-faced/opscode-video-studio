@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { HOME_DIR } from '../deps/locate.mjs';
-import { decodeMono, trimSilence, normalisePeak, SR } from './wav.mjs';
+import { decodeMono, trimSilenceLead, normalisePeak, SR } from './wav.mjs';
 import { speechParts, PART_GAP } from '../timeline.mjs';
 import { KIND_INFO } from '../compiler/characters.mjs';
 
@@ -58,12 +58,28 @@ const CACHE = path.join(HOME_DIR, 'cache', 'tts');
 const xmlEscape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 const speakable = (s) => String(s).replace(/\*/g, '');
 
+/** Word timings from Edge metadata: [{ text, start, end }] in seconds from the audio start. */
+export function parseWordBoundaries(raw) {
+  const out = [];
+  const re = /"Type":\s*"WordBoundary"[\s\S]*?"Offset":\s*(\d+),\s*"Duration":\s*(\d+)[\s\S]*?"Text":\s*("(?:[^"\\]|\\.)*")/g;
+  let m;
+  while ((m = re.exec(raw))) {
+    let text;
+    try { text = JSON.parse(m[3]); } catch { continue; }
+    const start = +m[1] / 1e7;
+    out.push({ text, start: +start.toFixed(3), end: +(start + +m[2] / 1e7).toFixed(3) });
+  }
+  return out;
+}
+
 async function speakToFile(voice, rate, text, file, pitch) {
   const tts = new MsEdgeTTS({ connectionTimeoutMs: 15000, synthesisTimeoutMs: 60000 });
-  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3, { wordBoundaryEnabled: true });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ovtts-'));
   try {
-    const { audioFilePath } = await tts.toFile(dir, xmlEscape(text), { rate: rate || '+0%', ...(pitch && pitch !== '+0%' ? { pitch } : {}) });
+    const { audioFilePath, metadataFilePath } = await tts.toFile(dir, xmlEscape(text), { rate: rate || '+0%', ...(pitch && pitch !== '+0%' ? { pitch } : {}) });
+    const words = metadataFilePath && fs.existsSync(metadataFilePath) ? parseWordBoundaries(fs.readFileSync(metadataFilePath, 'utf8')) : [];
+    fs.writeFileSync(file.replace(/\.mp3$/, '.words.json'), JSON.stringify(words));
     fs.copyFileSync(audioFilePath, file);
   } finally {
     try { tts.close(); } catch {}
@@ -71,10 +87,12 @@ async function speakToFile(voice, rate, text, file, pitch) {
   }
 }
 
-async function speakCached(voice, rate, pitch, text) {
+async function speakCached(voice, rate, pitch, text, needWords = false) {
   const key = crypto.createHash('sha1').update(JSON.stringify([voice, rate, text, pitch || ''])).digest('hex').slice(0, 16);
   const mp3 = path.join(CACHE, `${key}.mp3`);
-  if (!fs.existsSync(mp3) || fs.statSync(mp3).size < 500) {
+  const wordsFile = path.join(CACHE, `${key}.words.json`);
+  // Clips cached before word timings existed are spoken again once when timings are needed.
+  if (!fs.existsSync(mp3) || fs.statSync(mp3).size < 500 || (needWords && !fs.existsSync(wordsFile))) {
     let lastErr;
     for (let attempt = 0; attempt < 3; attempt++) {
       try { await speakToFile(voice, rate, text, mp3, pitch); lastErr = null; break; }
@@ -82,7 +100,13 @@ async function speakCached(voice, rate, pitch, text) {
     }
     if (lastErr) throw new Error(`text-to-speech failed (${lastErr.message || lastErr}). Check the internet connection or the voice name "${voice}".`);
   }
-  return { samples: normalisePeak(trimSilence(decodeMono(mp3))), file: mp3 };
+  const { samples, lead } = trimSilenceLead(decodeMono(mp3));
+  let words = null;
+  try {
+    if (fs.existsSync(wordsFile)) words = JSON.parse(fs.readFileSync(wordsFile, 'utf8'))
+      .map(w => ({ text: w.text, start: +Math.max(0, w.start - lead).toFixed(3), end: +Math.max(0, w.end - lead).toFixed(3) }));
+  } catch { words = null; }
+  return { samples: normalisePeak(samples), file: mp3, words: words && words.length ? words : null };
 }
 
 /**
@@ -97,15 +121,18 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
   const total = storyboard.scenes.reduce((n, sc) => n + speechParts(sc).length, 0);
   let done = 0;
   const gap = new Float32Array(Math.round(PART_GAP * SR));
+  // Narration word timings drive the captions.
+  const needWords = storyboard.captions !== false;
   for (const sc of storyboard.scenes) {
     const parts = speechParts(sc);
     if (!parts.length) { out.push(null); continue; }
     const clips = [];
-    let file = null;
+    let file = null, words = null;
     for (const p of parts) {
       const v = p.kind === 'line' ? voices.get(p.who) : { voice, rate, pitch: null };
-      const clip = await speakCached(v.voice, v.rate, v.pitch, speakable(p.text));
+      const clip = await speakCached(v.voice, v.rate, v.pitch, speakable(p.text), needWords && p.kind === 'narration');
       clips.push(clip.samples);
+      if (p.kind === 'narration') words = clip.words;
       file = file || clip.file;
       onProgress({ stage: 'voice', done: ++done, total });
     }
@@ -113,7 +140,7 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
     const samples = new Float32Array(len);
     let o = 0;
     clips.forEach((c, j) => { samples.set(c, o); o += c.length + (j < clips.length - 1 ? gap.length : 0); });
-    out.push({ samples, seconds: +(samples.length / SR).toFixed(3), parts: clips.map(c => +(c.length / SR).toFixed(3)), file });
+    out.push({ samples, seconds: +(samples.length / SR).toFixed(3), parts: clips.map(c => +(c.length / SR).toFixed(3)), file, words });
   }
   return out;
 }

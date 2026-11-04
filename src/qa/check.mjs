@@ -4,6 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { openBuild } from '../render/browser.mjs';
 import { findFfmpeg } from '../deps/locate.mjs';
+import { PLATFORMS } from '../schema/platforms.mjs';
 
 const FIELD_FOR = { headline: 'headline', subline: 'subline or body', kicker: 'kicker', quote: 'quote', chips: 'chips', tags: 'tags or highlight labels', items: 'items', stats: 'items', badges: 'badges', button: 'button' };
 
@@ -24,6 +25,9 @@ function fixHint(issue, scene) {
     case 'caption-long': return `split the narration of scenes[${issue.scene}] into shorter sentences`;
     case 'caption-overlap': return `fine for most videos; if it hides something important, shorten scenes[${issue.scene}] content`;
     case 'covers-character': return `shorten scenes[${issue.scene}].${issue.element === 'story text' ? 'text' : 'headline'}, use size "small" for the characters, or move the text to another scene`;
+    case 'in-unsafe-zone': return issue.side === 'bottom' || issue.side === 'top'
+      ? `shorten scenes[${issue.scene}].${field} so it fits in the middle of the frame`
+      : `shorten scenes[${issue.scene}].${field}; long lines run under the like/comment buttons`;
     case 'missing-image': return `check the image path in scenes[${issue.scene}]`;
     case 'tiny-image': return `crop the screenshot in scenes[${issue.scene}] to the important panel so it shows larger`;
     default: return '';
@@ -45,6 +49,9 @@ export async function runCheck({ build, storyboard, outDir }) {
       await sess.seek(t);
       fs.writeFileSync(path.join(tmp, `s${String(k).padStart(2, '0')}.jpg`), await sess.frame('jpeg', 85));
     }
+    const plat = PLATFORMS[storyboard.platform];
+    if (plat?.maxSec && tl.duration > plat.maxSec) issues.push({ scene: null, check: 'too-long-for-platform', element: 'video', severity: 'error', message: `${Math.round(tl.duration)} s; ${plat.label} allows at most ${plat.maxSec} s`, fix: 'cut scenes or shorten narration' });
+    else if (plat?.warnSec && tl.duration > plat.warnSec) issues.push({ scene: null, check: 'too-long-for-platform', element: 'video', severity: 'warning', message: `${Math.round(tl.duration)} s; ${plat.label} works best under ${plat.warnSec} s`, fix: 'shorter is better here: trim the weakest scenes' });
     const sheet = path.join(outDir, 'contact-sheet.jpg');
     const n = tl.scenes.length;
     const vertical = build.stage.height > build.stage.width;
