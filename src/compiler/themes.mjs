@@ -10,6 +10,8 @@ export const THEME_PRESETS = {
   'clean-light':   { dark: false, bg: '#f6f7fb', bg2: '#e7eaf6', bg3: '#d9def3', ink: '#151833', muted: '#555b7a', accent: '#4f5bff', accent2: '#ff7a45', ok: '#138a5e', alert: '#d33a3a', onAccent: '#ffffff', display: 'Poppins', stars: false },
   'midnight-neon': { dark: true, bg: '#080a15', bg2: '#121833', bg3: '#1d2a5c', ink: '#eaf2ff', muted: '#8fa0c8', accent: '#3ee6c4', accent2: '#8a6cff', ok: '#3ee6c4', alert: '#ff5f8a', onAccent: '#04221c', display: 'Poppins', stars: true },
   'corporate-blue':{ dark: true, bg: '#0b2545', bg2: '#13315c', bg3: '#1d4a85', ink: '#f1f5fb', muted: '#a9bad3', accent: '#ffd166', accent2: '#5fb3ff', ok: '#4cd4a0', alert: '#ff6b6b', onAccent: '#2a1f00', display: 'Poppins', stars: false },
+  'storybook':     { dark: false, bg: '#fff6e5', bg2: '#ffe9c7', bg3: '#ffd9a0', ink: '#2d2a32', muted: '#6b5e57', accent: '#ff6b6b', accent2: '#4ecdc4', ok: '#2a9d8f', alert: '#e63946', onAccent: '#ffffff', display: 'Poppins', stars: false },
+  'festive':       { dark: true, bg: '#2a0a2e', bg2: '#4a1240', bg3: '#7a1d4a', ink: '#fff3e0', muted: '#e3c6d6', accent: '#ffc145', accent2: '#ff5e78', ok: '#7bdff2', alert: '#ff5e78', onAccent: '#2a0a2e', display: 'Rozha One', stars: true },
   'warm-paper':    { dark: false, bg: '#f5efe3', bg2: '#ebdfc9', bg3: '#dccba9', ink: '#2b2118', muted: '#6e5f4e', accent: '#c4532c', accent2: '#2f6f62', ok: '#2f7d4f', alert: '#b3261e', onAccent: '#ffffff', display: 'Rozha One', stars: false },
 };
 

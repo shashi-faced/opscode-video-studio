@@ -2,7 +2,20 @@
 // every error has a JSON path, what is wrong, and a concrete fix.
 import fs from 'node:fs';
 import path from 'node:path';
-import { TEMPLATES, COMMON_FIELDS, TOP_FIELDS, DEFAULTS, FORMATS } from './spec.mjs';
+import { TEMPLATES, COMMON_FIELDS, TOP_FIELDS, DEFAULTS, FORMATS, CHARACTER_KINDS, POSES, CHARACTER_MOODS, POSITIONS, ENTRANCES, SIZES, BACKGROUNDS, TIMES, VIDEO_TYPES } from './spec.mjs';
+import { TYPE_RECIPES, TYPE_ALIASES } from './types.mjs';
+import { KIND_ALIASES } from '../compiler/characters.mjs';
+import { BACKGROUND_ALIASES, TIME_ALIASES } from '../compiler/backgrounds.mjs';
+
+const POSE_ALIASES = { standing: 'idle', stand: 'idle', still: 'idle', waving: 'wave', hello: 'wave', walking: 'walk', running: 'walk', run: 'walk', jumping: 'jump', hop: 'jump', hopping: 'jump',
+  cheering: 'cheer', celebrate: 'cheer', celebrating: 'cheer', happy: 'cheer', pointing: 'point', thinking: 'think', wondering: 'think', dancing: 'dance', talking: 'idle', talk: 'idle', sitting: 'idle', sleeping: 'idle', flying: 'idle', crying: 'idle' };
+const MOOD_ALIASES = { excited: 'happy', joyful: 'happy', smiling: 'happy', glad: 'happy', cheerful: 'happy', proud: 'happy', curious: 'surprised', shocked: 'surprised', amazed: 'surprised', wow: 'surprised',
+  scared: 'worried', afraid: 'worried', nervous: 'worried', confused: 'worried', crying: 'sad', upset: 'sad', unhappy: 'sad', lonely: 'sad', mad: 'angry', furious: 'angry', tired: 'sleepy', sleeping: 'sleepy', asleep: 'sleepy', neutral: 'happy', calm: 'happy' };
+const POSITION_ALIASES = { middle: 'center', centre: 'center', mid: 'center', 'left-side': 'left', 'right-side': 'right', 'far left': 'far-left', 'far right': 'far-right', 'center-left': 'left', 'center-right': 'right' };
+const ENTER_ALIASES = { walk: 'walk-in', 'walks-in': 'walk-in', walkin: 'walk-in', appear: 'pop', 'pop-in': 'pop', fly: 'fly-in', 'falls-in': 'fly-in', fall: 'fly-in', 'fade-in': 'fade' };
+const key = (v) => String(v ?? '').trim().toLowerCase().replace(/[\s_]+/g, '-');
+const aliasOf = (v, list, aliases) => { const k = key(v); return list.includes(k) ? k : aliases[k] || aliases[k.replace(/-/g, ' ')] || null; };
+const slugId = (v) => key(v).replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
 
 const FORMAT_ALIASES = {
   '16x9': '16:9', '16/9': '16:9', landscape: '16:9', youtube: '16:9', wide: '16:9', horizontal: '16:9',
@@ -10,6 +23,9 @@ const FORMAT_ALIASES = {
   '1x1': '1:1', '1/1': '1:1', square: '1:1', post: '1:1',
 };
 const TEMPLATE_ALIASES = {
+  'story-scene': 'story', cartoon: 'story', narration: 'story', 'title-card': 'story', 'the-end': 'story', scene: 'story', animation: 'story', storybook: 'story',
+  conversation: 'dialogue', talk: 'dialogue', chat: 'dialogue', dialog: 'dialogue', speech: 'dialogue', conversations: 'dialogue',
+  'how-to': 'steps', howto: 'steps', process: 'steps', procedure: 'steps', tutorial: 'steps', recipe: 'steps', numbered: 'steps', step: 'steps',
   intro: 'title', hero: 'title', opening: 'title', cover: 'title',
   screenshot: 'feature', demo: 'feature', showcase: 'feature', screen: 'feature',
   list: 'bullets', benefits: 'bullets', features: 'bullets',
@@ -29,6 +45,44 @@ const FIELD_ALIASES = {
   features: 'chips', pills: 'chips',
   cta: 'button', buttonText: 'button',
 };
+// Scene fields that mean something else in one template.
+const TEMPLATE_FIELD_ALIASES = {
+  story: { bg: 'background', scene: 'background', location: 'background', place: 'background', setting: 'background', chars: 'characters', cast: 'characters', people: 'characters', actors: 'characters', title: 'headline', heading: 'headline', caption: 'text', description: 'text', line: 'text', dialogue: 'lines', dialog: 'lines', conversation: 'lines', speech: 'lines', timeOfDay: 'time' },
+  dialogue: { bg: 'background', scene: 'background', location: 'background', place: 'background', setting: 'background', chars: 'characters', cast: 'characters', people: 'characters', dialogue: 'lines', dialog: 'lines', conversation: 'lines', speech: 'lines', messages: 'lines', timeOfDay: 'time' },
+  steps: { items: 'steps', bullets: 'steps', points: 'steps', list: 'steps', title: 'headline', heading: 'headline' },
+};
+
+function normCharacter(c, p, warn) {
+  if (typeof c === 'string') return { who: slugId(c) };
+  if (!isObj(c)) return c;
+  const o = { ...c };
+  if (o.who === undefined) for (const k of ['id', 'character', 'name', 'kind', 'speaker']) if (o[k] !== undefined) { o.who = o[k]; delete o[k]; warn(p, `"${k}" used as "who"`); break; }
+  if (o.who !== undefined) o.who = slugId(o.who);
+  if (o.expression !== undefined && o.mood === undefined) { o.mood = o.expression; delete o.expression; }
+  if (o.emotion !== undefined && o.mood === undefined) { o.mood = o.emotion; delete o.emotion; }
+  if (o.action !== undefined && o.pose === undefined) { o.pose = o.action; delete o.action; }
+  if (o.entrance !== undefined && o.enter === undefined) { o.enter = o.entrance; delete o.entrance; }
+  if (o.side !== undefined && o.position === undefined) { o.position = o.side; delete o.side; }
+  for (const [f, list, al] of [['pose', POSES, POSE_ALIASES], ['mood', CHARACTER_MOODS, MOOD_ALIASES], ['position', POSITIONS, POSITION_ALIASES], ['enter', ENTRANCES, ENTER_ALIASES], ['size', SIZES, { big: 'large', huge: 'large', tiny: 'small', little: 'small', normal: 'medium' }]]) {
+    if (typeof o[f] === 'string') { const v = aliasOf(o[f], list, al); if (v && v !== o[f]) { warn(`${p}.${f}`, `"${o[f]}" changed to "${v}"`); o[f] = v; } }
+  }
+  return o;
+}
+
+function normLine(l, p, warn) {
+  if (typeof l === 'string') {
+    const m = l.match(/^\s*([^:]{1,30}):\s*(.+)$/);
+    if (m) { warn(p, 'text "Name: words" split into who and text'); return { who: slugId(m[1]), text: m[2].trim() }; }
+    return { who: '', text: l };
+  }
+  if (!isObj(l)) return l;
+  const o = { ...l };
+  if (o.who === undefined) for (const k of ['speaker', 'character', 'name', 'by', 'from', 'id']) if (o[k] !== undefined) { o.who = o[k]; delete o[k]; break; }
+  if (o.text === undefined) for (const k of ['line', 'say', 'says', 'dialogue', 'content', 'message', 'speech']) if (o[k] !== undefined) { o.text = o[k]; delete o[k]; break; }
+  if (o.who !== undefined) o.who = slugId(o.who);
+  if (typeof o.mood === 'string') { const v = aliasOf(o.mood, CHARACTER_MOODS, MOOD_ALIASES); if (v) o.mood = v; }
+  return o;
+}
 
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 
@@ -70,6 +124,39 @@ export function normalise(input, warnings) {
   };
   dropEmpty(sb, '');
 
+  if (typeof sb.type === 'string') {
+    const t = key(sb.type);
+    const v = VIDEO_TYPES.includes(t) ? t : TYPE_ALIASES[t];
+    if (v && v !== sb.type) warn('type', `"${sb.type}" changed to "${v}"`);
+    if (v) sb.type = v;
+  }
+  // The video type picks the look and sound unless the storyboard sets them.
+  const recipe = TYPE_RECIPES[sb.type];
+  if (recipe) {
+    if (sb.theme === undefined) sb.theme = recipe.theme;
+    if (sb.music === undefined) sb.music = { style: recipe.music };
+    else if (isObj(sb.music) && sb.music.style === undefined && sb.music.file === undefined) sb.music.style = recipe.music;
+    if (sb.format === undefined && recipe.format) sb.format = recipe.format;
+    if (sb.captions === undefined && recipe.captions !== undefined) sb.captions = recipe.captions;
+  }
+  if (Array.isArray(sb.cast)) {
+    sb.cast = sb.cast.map((c, i) => {
+      if (typeof c === 'string') c = { kind: c };
+      if (!isObj(c)) return c;
+      const o = { ...c };
+      if (o.kind === undefined) for (const k of ['type', 'animal', 'character', 'species']) if (o[k] !== undefined) { o.kind = o[k]; delete o[k]; break; }
+      if (typeof o.kind === 'string') {
+        const kk = key(o.kind);
+        const v = CHARACTER_KINDS.includes(kk) ? kk : KIND_ALIASES[kk] || CHARACTER_KINDS.find(x => kk.includes(x));
+        if (v && v !== o.kind) warn(`cast[${i}].kind`, `"${o.kind}" changed to "${v}"`);
+        if (v) o.kind = v;
+      }
+      if (o.id === undefined) { o.id = slugId(o.name || o.kind || `char${i + 1}`); warn(`cast[${i}].id`, `missing; set to "${o.id}"`); }
+      else o.id = slugId(o.id);
+      return o;
+    });
+  }
+
   for (const [k, v] of Object.entries(DEFAULTS)) {
     if (sb[k] === undefined) sb[k] = structuredClone(v);
     else if (isObj(v) && isObj(sb[k])) sb[k] = { ...v, ...sb[k] };
@@ -79,10 +166,15 @@ export function normalise(input, warnings) {
   sb.scenes = sb.scenes.map((sc, i) => {
     if (!isObj(sc)) return sc;
     const s = {};
+    // Find the template first: which field names are valid depends on it.
+    const rawT = sc.template ?? sc.type ?? sc.layout;
+    const tKey = typeof rawT === 'string' ? key(rawT) : undefined;
+    const tName = tKey && (TEMPLATES[tKey] ? tKey : TEMPLATE_ALIASES[tKey]);
+    const tFields = tName ? TEMPLATES[tName].fields : null;
     for (const [k, v] of Object.entries(sc)) {
-      const known = k in COMMON_FIELDS || Object.values(TEMPLATES).some(t => k in t.fields);
-      const alias = FIELD_ALIASES[k];
-      if (!known && alias && sc[alias] === undefined) { s[alias] = v; warn(`scenes[${i}].${k}`, `renamed to "${alias}"`); }
+      const known = k in COMMON_FIELDS || (tFields ? k in tFields : Object.values(TEMPLATES).some(t => k in t.fields));
+      const alias = (tName && TEMPLATE_FIELD_ALIASES[tName]?.[k]) || FIELD_ALIASES[k];
+      if (!known && alias && sc[alias] === undefined && s[alias] === undefined) { s[alias] = v; warn(`scenes[${i}].${k}`, `renamed to "${alias}"`); }
       else s[k] = v;
     }
     if (typeof s.template === 'string') {
@@ -100,9 +192,24 @@ export function normalise(input, warnings) {
     if (s.template === 'stat' && Array.isArray(s.items)) {
       s.items = s.items.map(it => typeof it === 'string' ? (() => { const m = it.match(/^(\S+)\s+(.*)$/); return m ? { value: m[1], label: m[2] } : { value: it, label: '' }; })() : it);
     }
+    if (s.template === 'story' || s.template === 'dialogue') {
+      if (Array.isArray(s.characters)) s.characters = s.characters.map((c, j) => normCharacter(c, `scenes[${i}].characters[${j}]`, warn));
+      if (Array.isArray(s.lines)) s.lines = s.lines.map((l, j) => normLine(l, `scenes[${i}].lines[${j}]`, warn));
+      if (typeof s.background === 'string') { const v = aliasOf(s.background, BACKGROUNDS, BACKGROUND_ALIASES) || BACKGROUNDS.find(b => key(s.background).includes(b)); if (v && v !== s.background) { warn(`scenes[${i}].background`, `"${s.background}" changed to "${v}"`); s.background = v; } }
+      if (typeof s.time === 'string') { const v = aliasOf(s.time, TIMES, TIME_ALIASES); if (v && v !== s.time) { warn(`scenes[${i}].time`, `"${s.time}" changed to "${v}"`); s.time = v; } }
+    }
+    if (s.template === 'steps' && typeof s.steps === 'string') { s.steps = s.steps.split(/\n|;|\d+\.\s/).map(x => x.trim()).filter(Boolean); warn(`scenes[${i}].steps`, 'text changed to a list'); }
     if (typeof s.duration === 'string') s.duration = parseFloat(s.duration);
     if (s.mascot === null || s.mascot === false) s.mascot = 'none';
     return s;
+  });
+  // A story scene without a place keeps the previous scene's background and time of day.
+  let lastBg = null, lastTime = null;
+  sb.scenes.forEach((s, i) => {
+    if (!isObj(s) || (s.template !== 'story' && s.template !== 'dialogue')) return;
+    if (s.background === undefined && lastBg) { s.background = lastBg; if (s.time === undefined && lastTime) s.time = lastTime; warn(`scenes[${i}].background`, `not set; kept "${lastBg}" from the previous scene`); }
+    lastBg = s.background || lastBg;
+    lastTime = s.time || lastTime;
   });
   return sb;
 }
@@ -164,14 +271,14 @@ export function validate(input, { baseDir = process.cwd() } = {}) {
   const ctx = { baseDir };
 
   for (const [k, spec] of Object.entries(TOP_FIELDS)) {
-    if (sb[k] === undefined) { if (spec.required) errors.push({ path: k, message: `missing "${k}"`, fix: `add "${k}": [ ... ] with 2-12 scenes` }); continue; }
+    if (sb[k] === undefined) { if (spec.required) errors.push({ path: k, message: `missing "${k}"`, fix: `add "${k}": [ ... ] with 2-16 scenes` }); continue; }
     if (k === 'scenes') continue;
     checkField(spec, sb[k], k, errors, warnings, ctx);
   }
   for (const k of Object.keys(sb)) if (!(k in TOP_FIELDS)) warnings.push({ path: k, message: `unknown field "${k}" ignored` });
 
   if (Array.isArray(sb.scenes)) {
-    checkField({ type: 'list', min: 2, max: 12 }, sb.scenes, 'scenes', errors, warnings, ctx);
+    checkField({ type: 'list', min: 2, max: TOP_FIELDS.scenes.max }, sb.scenes, 'scenes', errors, warnings, ctx);
     sb.scenes.forEach((s, i) => {
       const p = `scenes[${i}]`;
       if (!isObj(s)) { errors.push({ path: p, message: 'must be an object', fix: 'use { "template": "...", ... }' }); return; }
@@ -189,12 +296,31 @@ export function validate(input, { baseDir = process.cwd() } = {}) {
         if (isObj(h) && h.y <= 1 && h.h <= 1 && h.y + h.h > 1.001) errors.push({ path: `${p}.highlights[${j}]`, message: 'box goes past the bottom edge (y + h > 1)', fix: `make h at most ${(1 - h.y).toFixed(2)}` });
       });
     });
+    const recipe = TYPE_RECIPES[sb.type] || TYPE_RECIPES.ad;
+    const typeName = sb.type || 'ad';
     if (sb.scenes.length >= 2) {
-      if (sb.scenes[0]?.template !== 'title') warnings.push({ path: 'scenes[0]', message: 'videos usually start with a "title" scene' });
-      if (sb.scenes.at(-1)?.template !== 'cta') warnings.push({ path: `scenes[${sb.scenes.length - 1}]`, message: 'videos usually end with a "cta" scene' });
+      if (!recipe.first.includes(sb.scenes[0]?.template)) warnings.push({ path: 'scenes[0]', message: `a ${typeName} video usually starts with: ${recipe.first.join(' or ')}` });
+      if (!recipe.last.includes(sb.scenes.at(-1)?.template)) warnings.push({ path: `scenes[${sb.scenes.length - 1}]`, message: `a ${typeName} video usually ends with: ${recipe.last.join(' or ')}` });
     }
+    sb.scenes.forEach((s, i) => { if (isObj(s) && TEMPLATES[s.template] && !recipe.templates.includes(s.template)) warnings.push({ path: `scenes[${i}].template`, message: `"${s.template}" does not fit a ${typeName} video; good templates: ${recipe.templates.join(', ')}` }); });
+
+    // Every character a scene uses must be in the cast (or be a plain character kind).
+    const castIds = new Set((Array.isArray(sb.cast) ? sb.cast : []).filter(isObj).flatMap(c => [c.id, c.name && slugId(c.name)]).filter(Boolean));
+    const knownWho = (w) => castIds.has(w) || CHARACTER_KINDS.includes(w) || CHARACTER_KINDS.includes(KIND_ALIASES[w]);
+    const whoFix = () => castIds.size ? `use a cast id (${[...castIds].join(', ')}) or add this character to "cast"` : 'add it to "cast" ({ "id", "kind", "name" }) or use a kind such as rabbit, boy, owl, star';
+    sb.scenes.forEach((s, i) => {
+      if (!isObj(s) || (s.template !== 'story' && s.template !== 'dialogue')) return;
+      (Array.isArray(s.characters) ? s.characters : []).forEach((c, j) => { if (isObj(c) && c.who && !knownWho(c.who)) errors.push({ path: `scenes[${i}].characters[${j}].who`, message: `unknown character "${c.who}"`, fix: whoFix() }); });
+      (Array.isArray(s.lines) ? s.lines : []).forEach((l, j) => {
+        if (isObj(l) && !l.who) errors.push({ path: `scenes[${i}].lines[${j}].who`, message: 'line has no speaker', fix: 'set "who" to the cast id of the speaker' });
+        else if (isObj(l) && !knownWho(l.who)) errors.push({ path: `scenes[${i}].lines[${j}].who`, message: `unknown speaker "${l.who}"`, fix: whoFix() });
+      });
+      const n = new Set([...(s.characters || []).map(c => c?.who), ...(s.lines || []).map(l => l?.who)].filter(Boolean)).size;
+      if (n > 4) errors.push({ path: `scenes[${i}]`, message: `${n} characters in one scene, limit is 4`, fix: 'split the scene in two' });
+      if (s.text && Array.isArray(s.lines) && s.lines.length) warnings.push({ path: `scenes[${i}]`, message: 'a scene with both "text" and "lines" can get crowded; prefer one of them' });
+    });
     const voiced = sb.voice?.provider !== 'none';
-    if (voiced && !sb.scenes.some(s => isObj(s) && s.narration)) warnings.push({ path: 'scenes', message: 'no scene has narration, so there will be no voice' });
+    if (voiced && !sb.scenes.some(s => isObj(s) && (s.narration || (Array.isArray(s.lines) && s.lines.length)))) warnings.push({ path: 'scenes', message: 'no scene has narration, so there will be no voice' });
   }
   return { ok: errors.length === 0, errors, warnings, storyboard: sb };
 }

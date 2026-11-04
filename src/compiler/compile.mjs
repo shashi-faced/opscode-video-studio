@@ -7,6 +7,7 @@ import { STAGE } from '../schema/spec.mjs';
 import { resolveTheme, themeCss, fontFiles } from './themes.mjs';
 import { TEMPLATE_HTML, TEMPLATE_CSS } from './templates.mjs';
 import { imageSize } from '../util/imagesize.mjs';
+import { stageLayout } from './backgrounds.mjs';
 import { escapeHtml } from '../timeline.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -42,8 +43,15 @@ export function compile(storyboard, timeline, { baseDir, buildDir }) {
   }).join('\n');
 
   const brandLogo = storyboard.brand?.logo;
+  // Story characters: looked up by id or by display name.
+  const cast = new Map();
+  for (const c of storyboard.cast || []) {
+    cast.set(String(c.id).toLowerCase(), { ...c, id: String(c.id).toLowerCase() });
+    if (c.name) cast.set(String(c.name).toLowerCase(), { ...c, id: String(c.id).toLowerCase() });
+  }
+  const layout = stageLayout(stage.width, stage.height);
   const scenesHtml = storyboard.scenes.map((sc, i) => {
-    const ctx = { index: i, fi: FORMAT_INDEX[storyboard.format], asset, brandLogo, format: storyboard.format };
+    const ctx = { index: i, fi: FORMAT_INDEX[storyboard.format], asset, brandLogo, format: storyboard.format, cast, layout };
     const inner = TEMPLATE_HTML[sc.template](sc, ctx);
     return `<section class="scene tr-${sc.transition || 'fade'}" data-i="${i}">${inner}</section>`;
   }).join('\n');
@@ -62,7 +70,7 @@ export function compile(storyboard, timeline, { baseDir, buildDir }) {
 <style>${fonts}
 ${themeCss(theme)}
 html,body{margin:0;background:#000}
-#stage{width:${stage.width}px;height:${stage.height}px}
+#stage{width:${stage.width}px;height:${stage.height}px;--ground:${layout.ground}px;--chh:${layout.chh}px}
 ${TEMPLATE_CSS}</style></head>
 <body><div id="stage" class="${stage.cls}"><div class="amb">${stars}<div class="blob"></div><div class="blob b2"></div></div>
 ${brand}${prog}

@@ -42,6 +42,12 @@
     const inner = scene.querySelector('.in');
     const mediaBox = scene.querySelector('.media');
     let scale = 1;
+    // Story scenes are full-bleed pictures: only their text boxes need fitting.
+    if (inner && inner.classList.contains('no-scale')) {
+      fits.forEach(el => fitOne(el, 1));
+      scene.dataset.scale = '1';
+      return;
+    }
     // Collapse images while measuring text, so a large picture can't push text out.
     for (const f of scene.querySelectorAll('.frame')) f.style.width = '8px';
     for (let k = 0; k < 12; k++) {
@@ -70,10 +76,35 @@
     return i < 0 ? TL.scenes.length - 1 : i;
   }
 
+  // Speaking characters move their mouths; each line's bubble pops in and stays until the next.
+  function speech(i, ms) {
+    const sc = TL.scenes[i], el = sceneEls[i];
+    const parts = sc.parts || [];
+    if (!parts.length) return;
+    const t = ms / 1000;
+    for (const w of el.querySelectorAll('.chwrap')) {
+      const who = w.dataset.who;
+      w.classList.toggle('talking', parts.some(p => p.kind === 'line' && p.who === who && t >= p.start && t < p.end));
+    }
+    const lines = parts.filter(p => p.kind === 'line');
+    lines.forEach((p, k) => {
+      const b = el.querySelector(`.bubble[data-line="${p.line}"]`);
+      if (!b) return;
+      const until = k + 1 < lines.length ? lines[k + 1].start - 0.05 : sc.end;
+      const a = Math.max(0, Math.min(1, (t - p.start + 0.12) / 0.25));
+      const on = t >= p.start - 0.12 && t < until;
+      const e = 1 - Math.pow(1 - a, 3);
+      b.style.opacity = on ? String(a) : '0';
+      b.style.transform = `translateX(-50%) scale(${on ? (0.7 + 0.3 * e).toFixed(3) : 0.7})`;
+      b.style.transformOrigin = `var(--tail) 100%`;
+    });
+  }
+
   function seek(ms) {
     const i = sceneAt(ms);
     const sc = TL.scenes[i];
     if (i !== cur) { sceneEls.forEach((el, k) => el.classList.toggle('on', k === i)); cur = i; }
+    speech(i, ms);
     const local = Math.max(0, ms - sc.start * 1000);
     for (const a of sceneEls[i].getAnimations({ subtree: true })) { a.pause(); a.currentTime = local; }
     if (amb) for (const a of amb.getAnimations({ subtree: true })) { a.pause(); a.currentTime = ms; }
@@ -88,7 +119,10 @@
 
   // ---------- QA ----------
   const NAMES = [['.kicker', 'kicker'], ['.headline', 'headline'], ['.subline', 'subline'], ['.quote', 'quote'], ['.chips', 'chips'], ['.tags', 'tags'],
-    ['.frame', 'image'], ['.mascot', 'mascot'], ['.list', 'items'], ['.stats', 'stats'], ['.badges', 'badges'], ['.button', 'button'], ['.logo', 'logo'], ['.who', 'author']];
+    ['.frame', 'image'], ['.mascot', 'mascot'], ['.list', 'items'], ['.stats', 'stats'], ['.badges', 'badges'], ['.button', 'button'], ['.logo', 'logo'], ['.who', 'author'],
+    ['.chwrap', 'character'], ['.bubble', 'bubble'], ['.storytext', 'story text'], ['.storytitle', 'title'], ['.steps', 'steps']];
+  // Characters may overlap each other, captions and scenery; bubbles never show together.
+  const SOFT = new Set(['mascot', 'character']);
   const nameOf = (el) => (NAMES.find(([sel]) => el.matches(sel)) || [, 'element'])[1];
   const area = (r) => Math.max(0, r.width) * Math.max(0, r.height);
   const inter = (a, b) => area({ width: Math.min(a.right, b.right) - Math.max(a.left, b.left), height: Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) });
@@ -107,7 +141,7 @@
         if (r < 0.62) add('text-too-long', nameOf(el), `text had to shrink to ${Math.round(r * 100)}% to fit`, { severity: r < 0.5 ? 'error' : 'warning', chars: el.textContent.length });
       }
       if (+scene.dataset.scale < 0.75) add('crowded', 'scene', `the scene content had to shrink to ${Math.round(+scene.dataset.scale * 100)}%`, { severity: 'warning' });
-      const parts = NAMES.flatMap(([sel]) => [...scene.querySelectorAll(sel)]).filter(el => el.offsetParent !== null && !el.closest('.chips,.tags,.list,.stats,.badges,.who') || ['chips', 'tags', 'items', 'stats', 'badges', 'author'].includes(nameOf(el)));
+      const parts = NAMES.flatMap(([sel]) => [...scene.querySelectorAll(sel)]).filter(el => el.offsetParent !== null && !el.closest('.chips,.tags,.list,.stats,.badges,.who,.storytitle,.steps,.bubble') || ['chips', 'tags', 'items', 'stats', 'badges', 'author', 'title', 'steps', 'bubble'].includes(nameOf(el)));
       const uniq = [...new Set(parts)].filter(el => !parts.some(p => p !== el && p.contains(el)));
       const rects = uniq.map(el => ({ el, name: nameOf(el), r: el.getBoundingClientRect() }));
       for (const { name, r } of rects) {
@@ -116,7 +150,16 @@
       }
       for (let a = 0; a < rects.length; a++) for (let b = a + 1; b < rects.length; b++) {
         const A = rects[a], B = rects[b];
-        if (A.name === 'mascot' || B.name === 'mascot') continue;
+        // Text or a bubble covering a character's face matters; anything else may overlap characters.
+        const ch = A.name === 'character' ? A : B.name === 'character' ? B : null;
+        const other = ch === A ? B : A;
+        if (ch && other.name !== 'character' && ['title', 'story text', 'headline', 'kicker'].includes(other.name)) {
+          const cov = inter(ch.r, other.r) / Math.max(1, area(ch.r));
+          if (cov > 0.06) add('covers-character', other.name, `the ${other.name} covers a character`, { severity: 'warning' });
+          continue;
+        }
+        if (SOFT.has(A.name) || SOFT.has(B.name)) continue;
+        if (A.name === 'bubble' && B.name === 'bubble') continue;
         const ov = inter(A.r, B.r) / Math.max(1, Math.min(area(A.r), area(B.r)));
         if (ov > 0.08) add('overlap', `${A.name}+${B.name}`, `${A.name} overlaps ${B.name} (${Math.round(ov * 100)}%)`, { severity: ov > 0.25 ? 'error' : 'warning' });
       }
@@ -128,7 +171,7 @@
         const lh = parseFloat(getComputedStyle(capEl).lineHeight) || 40;
         if (cr.height > lh * 2.6 + 30) add('caption-long', 'caption', 'a caption runs to 3+ lines', { severity: 'warning' });
         for (const { name, r } of rects) {
-          if (name === 'mascot') continue;
+          if (SOFT.has(name)) continue;
           const ov = inter(cr, r) / Math.max(1, area(cr));
           if (ov > 0.1) add('caption-overlap', name, `the caption covers the ${name}`, { severity: 'warning' });
         }

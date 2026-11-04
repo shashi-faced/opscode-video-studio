@@ -22,6 +22,18 @@
 - Tool fix made from this: the normaliser now drops `null`/empty optional fields (with a warning), so the original output passes with zero rounds.
 - Preview: 0 layout issues. Render: 27 s 9:16 MP4 in 40 s.
 
+## v0.2.0 (2026-11-04): video types and characters
+
+- `type` field with 8 recipes (story, ad, demo, explainer, howto, greeting, announcement, reel): theme, music, format defaults and per-type first/last/template checks.
+- Character rig (`characters.mjs`): 21 kinds × 8 poses × 6 moods, shaded SVG, CSS animations (seekable): blink, breathe, talk, wave, walk, jump, cheer, dance; entrances.
+- 14 illustrated backgrounds (`backgrounds.mjs`) with day/sunset/night palettes and moving parts (clouds, stars, waves, bubbles, diyas, fireworks).
+- New templates `story`, `dialogue`, `steps`. Dialogue lines are voiced per character (`castVoices`): language from the narrator, gender and age set voice and pitch; parts joined with 0.35 s gaps; the timeline keeps per-line windows for bubbles and mouths.
+- Music styles `playful` and `festive`; themes `storybook` and `festive`.
+- `video_templates` takes `type` and returns only that recipe (story doc ≈ 9.5 KB vs 12 KB full).
+- Validator accepts loose model output: "Name: text" lines, speaker/says fields, kind and background aliases (bunny, garden, diwali), mood/pose aliases; unknown speakers are errors that list the cast.
+- QA: bubbles off-stage, text covering a character.
+- Test render: examples/kids-story.json (Hindi, 3 characters, 8 scenes) → 52 s 1080p in 3 min 15 s; 21 tests pass.
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.

@@ -16,12 +16,33 @@ node bin/opscode-video.mjs render examples/reel.json   # → examples/out/opscod
 npm test
 ```
 
+## What it makes (v0.2)
+
+Set `"type"` in the storyboard; it picks the scene recipe, theme and music.
+
+| Type | For | Main templates |
+|---|---|---|
+| `story` | kids stories, fables, cartoons | `story`, `dialogue` |
+| `ad` | products, shops, offers | `title`, `feature`, `bullets`, `stat`, `cta` |
+| `demo` | app walkthroughs with real screenshots | `feature`, `split`, `steps` |
+| `explainer` | teaching an idea | `story`, `dialogue`, `steps`, `bullets` |
+| `howto` | step-by-step guides, recipes | `steps`, `feature` |
+| `greeting` | Diwali, birthday, thank-you | `story` with the `festival` background |
+| `announcement` | news, launches, events | `title`, `bullets`, `cta` |
+| `reel` | 15–30 s vertical shorts | any, 9:16 |
+
+**Characters** (`cast` + `story`/`dialogue` scenes): 21 kinds (boy, girl, man, woman, grandpa, grandma, rabbit, cat, dog, bear, panda, fox, elephant, lion, mouse, owl, robot, star, sun, moon, cloud), 8 poses (idle, wave, walk, jump, cheer, point, think, dance), 6 moods, entrances (walk-in, pop, fly-in, fade). In dialogue scenes each line is spoken in that character's own voice (picked from the narrator's language, with pitch by age) with a speech bubble and a moving mouth.
+
+**Backgrounds**: meadow, forest, mountains, beach, village, city, sky, space, underwater, home, bedroom, classroom, office, festival — outdoor ones by `day`, `sunset` or `night`.
+
+See [examples/kids-story.json](examples/kids-story.json) for a complete Hindi story.
+
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `doctor [--install]` | Check / install Chrome, ffmpeg, voice access |
-| `templates` | Storyboard reference (what the agent reads) |
+| `templates [type]` | Storyboard reference (what the agent reads), optionally for one video type |
 | `init <dir> [--format 9:16]` | Starter storyboard |
 | `validate <file>` | Errors with exact fixes; auto-corrects common slips |
 | `check <file>` | Layout checks + `contact-sheet.jpg` |

@@ -15,12 +15,15 @@ function fixHint(issue, scene) {
       return `shorten scenes[${issue.scene}].${field} to about ${target} characters`;
     }
     case 'crowded': return `remove something from scenes[${issue.scene}]: fewer chips/items, a shorter subline, or split it into two scenes`;
-    case 'off-stage': return `scenes[${issue.scene}].${field} is too big; shorten it or use fewer items`;
+    case 'off-stage': return issue.element === 'bubble'
+      ? `shorten that line in scenes[${issue.scene}].lines (one short sentence) or use size "small" for the speaker`
+      : `scenes[${issue.scene}].${field} is too big; shorten it or use fewer items`;
     case 'overlap':
       if (/chips|tags/.test(issue.element)) return `use at most 3 short chips/tags in scenes[${issue.scene}]`;
       return `shorten the text in scenes[${issue.scene}] or switch to template "split"`;
     case 'caption-long': return `split the narration of scenes[${issue.scene}] into shorter sentences`;
     case 'caption-overlap': return `fine for most videos; if it hides something important, shorten scenes[${issue.scene}] content`;
+    case 'covers-character': return `shorten scenes[${issue.scene}].${issue.element === 'story text' ? 'text' : 'headline'}, use size "small" for the characters, or move the text to another scene`;
     case 'missing-image': return `check the image path in scenes[${issue.scene}]`;
     case 'tiny-image': return `crop the screenshot in scenes[${issue.scene}] to the important panel so it shows larger`;
     default: return '';

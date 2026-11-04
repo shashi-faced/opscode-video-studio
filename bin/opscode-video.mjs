@@ -25,7 +25,7 @@ const done = (obj, code = 0) => { process.stdout.write(JSON.stringify(obj) + '\n
 const HELP = `opscode-video — storyboard JSON to animated MP4
 
   doctor [--install]            check / install Chrome, ffmpeg, voices
-  templates                     storyboard reference for writing a storyboard
+  templates [type]              storyboard reference (optionally for one video type)
   init <dir> [--format 9:16]    write a starter storyboard
   validate <storyboard.json>    validate, with fix hints
   check <storyboard.json>       layout QA + contact sheet (no audio)
@@ -41,7 +41,7 @@ async function main() {
     switch (cmd) {
       case 'templates':
         if (flags.json) return done({ ok: true, example: EXAMPLE });
-        process.stdout.write(templatesDoc() + '\n');
+        process.stdout.write(templatesDoc(pos[0]) + '\n');
         return done({ ok: true });
       case 'tools':
         return done({ ok: true, tools: TOOL_DEFS });

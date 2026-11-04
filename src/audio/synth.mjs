@@ -67,6 +67,11 @@ export function synthMusic(timeline, { style = 'indian-electronic', seed = 7 } =
     pluckCache.set(key, out); return out;
   };
   const bassNote = (m) => { const n = Math.round(0.5 * SR), o = new Float32Array(n), e = env(n, 0.005, 0.25), f = hz(m); for (let i = 0; i < n; i++) o[i] = Math.tanh(2 * Math.sin(TAU * f * i / SR)) * e[i]; return o; };
+  // Marimba: a sine with a quick-decaying 4th partial (wooden mallet sound).
+  const marimba = (m, dur = 0.55) => { const n = Math.round(dur * SR), o = new Float32Array(n), f = hz(m), e = env(n, 0.002, 0.2), e2 = env(n, 0.001, 0.04);
+    for (let i = 0; i < n; i++) { const t = i / SR; o[i] = Math.sin(TAU * f * t) * e[i] + 0.45 * Math.sin(TAU * f * 3.98 * t) * e2[i]; } return o; };
+  const bell = (m) => { const n = Math.round(1.2 * SR), o = new Float32Array(n), f = hz(m), e = env(n, 0.001, 0.5);
+    for (let i = 0; i < n; i++) { const t = i / SR; o[i] = (Math.sin(TAU * f * t) + 0.5 * Math.sin(TAU * f * 2.76 * t) + 0.25 * Math.sin(TAU * f * 5.4 * t)) * e[i]; } return o; };
   const pad = (notes, dur) => { const n = Math.round(dur * SR), o = new Float32Array(n);
     for (let i = 0; i < n; i++) { const t = i / SR; let s = 0; for (const m of notes) s += Math.sin(TAU * hz(m) * t) + 0.3 * Math.sin(TAU * hz(m) * 2.003 * t); o[i] = s * Math.min(1, t / 0.3, (dur - t) / 0.3); } return o; };
 
@@ -78,6 +83,10 @@ export function synthMusic(timeline, { style = 'indian-electronic', seed = 7 } =
     'indian-electronic': { bpm: 100, prog: [[38, [50, 54, 57]], [36, [48, 52, 55]], [43, [50, 55, 59]], [45, [49, 52, 57]]] },
     'corporate-upbeat': { bpm: 112, prog: [[36, [60, 64, 67]], [43, [59, 62, 67]], [45, [60, 64, 69]], [41, [60, 65, 69]]] },
     ambient: { bpm: 80, prog: [[38, [62, 66, 69, 73]], [35, [62, 66, 69, 71]], [43, [62, 67, 71, 74]], [45, [61, 64, 69, 73]]] },
+    // Bouncy kids' tune: C - G - Am - F with marimba and light percussion.
+    playful: { bpm: 108, prog: [[36, [60, 64, 67]], [43, [59, 62, 67]], [45, [60, 64, 69]], [41, [60, 65, 69]]] },
+    // Celebration: brighter, faster cousin of indian-electronic in a major key, with bells.
+    festive: { bpm: 118, prog: [[38, [62, 66, 69]], [43, [62, 67, 71]], [45, [61, 64, 69]], [38, [62, 66, 69]]] },
   }[style] || null;
   if (!cfg) return [L, R];
   const B = 60 / cfg.bpm, BAR = 4 * B;
@@ -86,7 +95,39 @@ export function synthMusic(timeline, { style = 'indian-electronic', seed = 7 } =
   const bars = [];
   for (let b0 = 0; b0 < FIN - 0.05; b0 += BAR) bars.push(b0);
 
-  if (style === 'indian-electronic') {
+  if (style === 'playful') {
+    for (const b0 of bars) {
+      const full = b0 >= FULL - 1e-6;
+      for (const s of [0, 2]) add(kick, b0 + s * B, full ? 0.4 : 0.22);
+      if (full) for (const s of [1, 3]) add(clap, b0 + s * B, 0.12, 0.1);
+      for (let s = 0; s < 8; s++) add(shaker, b0 + s * B / 2, s % 2 ? 0.05 : 0.08, 0.5);
+    }
+    let bi = 0;
+    for (let p0 = 0; p0 < FIN - 0.1; p0 += BAR, bi++) {
+      const [, ch] = cfg.prog[bi % 4];
+      // Call-and-answer melody from chord tones, skipping on some beats for bounce.
+      const tune = bi % 2 ? [ch[2] + 12, ch[1] + 12, ch[2] + 12, ch[0] + 12, null, ch[1] + 12, ch[2] + 12, null] : [ch[0] + 12, ch[1] + 12, ch[2] + 12, null, ch[2] + 12, ch[1] + 12, ch[0] + 12, ch[1] + 12];
+      tune.forEach((m, k) => { const t = p0 + k * B / 2; if (m && t < FIN) add(marimba(m), t, 0.2, k % 2 ? 0.25 : -0.25); });
+      if (p0 >= FULL - 1e-6) [0, 1, 2, 3].forEach(k => { const t = p0 + k * B; if (t < FIN) add(pluck(ch[k % 3] - 12, 0.35, 0, false, 0.99), t, 0.14, 0); });
+    }
+  } else if (style === 'festive') {
+    const pat = ['dha', 'ge', 'na', 'tin', 'na', 'ka', 'dhi', 'na'];
+    for (const b0 of bars) {
+      const full = b0 >= FULL - 1e-6;
+      if (full) { for (let s = 0; s < 4; s++) add(kick, b0 + s * B, 0.55); for (const s of [1, 3]) add(clap, b0 + s * B, 0.22, 0.1); }
+      for (let s = 0; s < 16; s++) add(shaker, b0 + s * B / 4, s % 2 ? 0.06 : 0.1, 0.6);
+      pat.forEach((st, k) => {
+        const t0 = b0 + k * B / 2;
+        if (st === 'dha' || st === 'dhi') add(DHA, t0, 0.42, -0.2);
+        else if (st === 'ge') add(GE, t0, 0.38, -0.3);
+        else if (st === 'tin') add(tin, t0, 0.24, 0.3);
+        else add(na, t0, st === 'ka' ? 0.12 : 0.28, 0.25);
+      });
+    }
+    const motif = [[66, 0], [69, 1], [71, 2], [74, 3], [71, 4], [69, 5], [66, 6], [69, 7], [71, 8], [69, 10], [66, 11], [64, 12], [66, 14]];
+    for (let p0 = FULL; p0 < FIN - 0.1; p0 += 2 * BAR) for (const [m, st] of motif) { const t = p0 + st * B / 2; if (t < FIN) add(pluck(m, 0.8, 0, true), t, 0.13, 0.25); }
+    for (let t0 = FULL; t0 < FIN - 0.1; t0 += BAR) add(bell(86), t0, 0.07, -0.4);
+  } else if (style === 'indian-electronic') {
     for (let t0 = 0; t0 < T - 1; t0 += BAR) [[45, -0.4], [50, 0.3], [50, 0.1], [38, -0.1]].forEach(([m, p], j) => add(tanpura(m), t0 + j * B, 0.024, p));
     const pat = ['dha', 'ge', 'na', 'tin', 'na', 'ka', 'dhi', 'na'];
     for (const b0 of bars) {

@@ -3,6 +3,8 @@
 // text in .fit boxes (auto-shrunk by the runtime), entry delays via --d.
 import { escapeHtml as esc, markup } from '../timeline.mjs';
 import { mascotSvg } from './mascots.mjs';
+import { characterSvg, CHARACTER_CSS, KIND_INFO } from './characters.mjs';
+import { backgroundHtml, BACKGROUND_CSS } from './backgrounds.mjs';
 
 const fit = (tag, cls, html, max, lines, lh = 1.06, d = 0) =>
   `<${tag} class="fit ${cls}" data-max="${max}" data-lines="${lines}" data-lh="${lh}" style="--d:${d}s">${html}</${tag}>`;
@@ -11,6 +13,7 @@ const fit = (tag, cls, html, max, lines, lh = 1.06, d = 0) =>
 const SZ = {
   kicker: [2.3, 3.1, 2.8], hero: [11, 10.5, 9.5], head: [7.6, 9, 7.6], sub: [3.3, 4.2, 3.6],
   body: [3.2, 4.1, 3.5], item: [3.6, 4.4, 3.8], quote: [6.2, 7, 6], cta: [11, 12, 10], stat: [12, 13, 11],
+  bubble: [3.2, 4.4, 3.7], stext: [3.4, 4.3, 3.7], stitle: [9.5, 10.5, 9],
 };
 const sz = (k, ctx) => SZ[k][ctx.fi];
 
@@ -58,7 +61,80 @@ function tags(sc, ctx) {
   return `<div class="tags">${list.slice(0, 5).map((t, j) => `<span class="tag tone-${t.tone || 'accent'} a-pop" style="--d:${(t.at ?? lastHl + j * 0.6).toFixed(2)}s">${markup(t.text)}</span>`).join('')}</div>`;
 }
 
+// ---------- story scenes: background + characters + speech bubbles ----------
+const POS_X = [
+  { 'far-left': 12, left: 27, center: 50, right: 73, 'far-right': 88 },   // 16:9
+  { 'far-left': 18, left: 28, center: 50, right: 72, 'far-right': 82 },   // 9:16
+  { 'far-left': 15, left: 28, center: 50, right: 72, 'far-right': 85 },   // 1:1
+];
+const SPREAD = [[50], [30, 70], [20, 50, 80], [14, 38, 62, 86]];
+const SIZE = { small: 0.72, medium: 1, large: 1.22 };
+const BUBBLE_W = [34, 66, 50];
+
+/** Cast entry for a scene's "who": a cast id, a cast name or a character kind. */
+export function resolveWho(who, ctx) {
+  const key = String(who || '').toLowerCase();
+  const c = ctx.cast?.get(key);
+  if (c) return { ...c, id: c.id, name: c.name || c.id };
+  const kind = KIND_INFO[key] ? key : 'rabbit';
+  return { id: key, kind, name: key.charAt(0).toUpperCase() + key.slice(1) };
+}
+
+function placeCharacters(list, ctx) {
+  const n = Math.min(list.length, 4);
+  const crowd = ctx.fi === 0 ? 1 : n >= 3 ? 0.74 : n === 2 ? 0.9 : 1;
+  return list.slice(0, 4).map((c, k) => {
+    const who = resolveWho(c.who, ctx);
+    const x = c.position ? POS_X[ctx.fi][c.position] : SPREAD[n - 1][k];
+    const s = +(SIZE[c.size || 'medium'] * crowd).toFixed(3);
+    const facing = c.facing || (x > 55 ? 'left' : 'right');
+    return { ...c, who, x, s, facing };
+  });
+}
+
+function storyScene(sc, ctx) {
+  const lines = sc.lines || [];
+  // Speakers who were not placed are added, so every bubble has someone to point at.
+  const listed = [...(sc.characters || [])];
+  for (const l of lines) if (!listed.some(c => String(c.who).toLowerCase() === String(l.who).toLowerCase())) listed.push({ who: l.who });
+  const chars = placeCharacters(listed, ctx);
+  const { ground, chh } = ctx.layout;
+
+  const charHtml = chars.map((c, k) => {
+    const firstLine = lines.find(l => String(l.who).toLowerCase() === c.who.id);
+    const mood = c.mood || firstLine?.mood || 'happy';
+    const enter = c.enter && c.enter !== 'none' ? `enter-${c.enter}` : '';
+    const from = c.x < 50 ? 'calc(var(--u)*-115)' : 'calc(var(--u)*115)';
+    const svg = characterSvg(c.who.kind, { mood, pose: c.pose || 'idle', color: c.who.color, hair: c.who.hair, skin: c.who.skin }, `c${ctx.index}_${k}`);
+    return `<div class="chwrap ${enter}" data-who="${esc(c.who.id)}" style="left:${c.x}%;--s:${c.s};--d:${(0.2 + k * 0.3).toFixed(2)}s;--from:${from};--blink:-${(k * 1.37).toFixed(2)}s"><div class="chflip${c.facing === 'left' ? ' flip' : ''}">${svg}</div></div>`;
+  }).join('');
+
+  const bw = BUBBLE_W[ctx.fi];
+  const bubbles = lines.map((l, k) => {
+    const c = chars.find(x => x.who.id === String(l.who).toLowerCase()) || chars[0];
+    const left = Math.min(100 - bw / 2 - 3, Math.max(bw / 2 + 3, c.x));
+    const tail = Math.min(86, Math.max(14, 50 + ((c.x - left) / bw) * 100));
+    const top = KIND_INFO[c.who.kind]?.plan === 'float' ? 0.72 : 0.86;
+    const bottom = Math.round(ground + chh * c.s * top + 18);
+    return `<div class="bubble" data-line="${k}" style="left:${left}%;width:${bw}%;bottom:${bottom}px;--tail:${tail.toFixed(1)}%"><b class="bname">${esc(c.who.name)}</b>${fit('div', 'btext', markup(l.text), sz('bubble', ctx), 4, 1.25)}</div>`;
+  }).join('');
+
+  const text = sc.text
+    ? `<div class="storytext a-up${sc.headline ? ' below' : ''}" style="--d:${sc.headline ? 0.9 : 0.4}s">${fit('p', 'stext', markup(sc.text), sz('stext', ctx), 3, 1.3)}</div>` : '';
+  // With a title, the story text flows right under it instead of sitting at a fixed height.
+  const title = sc.headline
+    ? `<div class="storytitle">${sc.kicker ? fit('div', 'kicker a-up', esc(sc.kicker), sz('kicker', ctx), 1, 1.2, 0.1) : ''}${fit('h1', 'headline a-pop', markup(sc.headline), sz('stitle', ctx), 2, 1.04, 0.25)}${text}</div>` : '';
+  return `<div class="in t-story no-scale">${backgroundHtml(sc.background || 'meadow', sc.time || 'day')}${charHtml}${bubbles}${title}${sc.headline ? '' : text}</div>`;
+}
+
 export const TEMPLATE_HTML = {
+  story: storyScene,
+  dialogue: storyScene,
+  steps(sc, ctx) {
+    const items = (sc.steps || []).map((st, j) => `<li class="a-up" style="--d:${(0.7 + j * 0.7).toFixed(2)}s"><span class="num">${j + 1}</span>${fit('span', 'item', markup(st), sz('item', ctx), 2, 1.25)}</li>`).join('');
+    const vis = sc.image ? media(sc, ctx, { d: 0.3 }) : '';
+    return `<div class="in t-steps ${vis ? 'has-vis' : 'no-vis'}"><div class="txt">${textBlock(sc, ctx)}${mascot(sc, ctx, 'inline')}</div><ol class="steps">${items}</ol>${vis}</div>`;
+  },
   title(sc, ctx) {
     const vis = sc.image ? media(sc, ctx, { d: 0.45 }) : (sc.mascot && sc.mascot !== 'none' ? `<div class="vis-mascot">${mascot(sc, ctx, 'big')}</div>` : '');
     const extraMascot = sc.image ? mascot(sc, ctx, 'corner') : '';
@@ -171,6 +247,34 @@ export const TEMPLATE_CSS = `
 .badges{display:flex;flex-wrap:wrap;justify-content:center;gap:calc(var(--u)*1.2);max-width:100%}
 .badge{font:600 calc(var(--u)*var(--chipsize)) var(--body);padding:calc(var(--u)*.8) calc(var(--u)*2);border-radius:99px;border:calc(var(--u)*.18) solid var(--card-edge)}
 .button{font:700 calc(var(--u)*var(--btnsize)) var(--body);padding:calc(var(--u)*2) calc(var(--u)*5);border-radius:99px;background:var(--accent);color:var(--on-accent);box-shadow:0 calc(var(--u)*1.4) calc(var(--u)*4) color-mix(in srgb,var(--accent) 45%,transparent)}
+
+/* ---- story, dialogue, steps ---- */
+#stage .in.t-story{left:0;right:0;top:0;bottom:0;display:block;gap:0;overflow:hidden}
+.bubble{position:absolute;z-index:4;transform:translateX(-50%);background:#fff;color:#1f1b2e;border-radius:calc(var(--u)*2.6);padding:calc(var(--u)*1.2) calc(var(--u)*2.2) calc(var(--u)*1.5);box-shadow:0 calc(var(--u)*.8) calc(var(--u)*2.6) #0005;opacity:0;font-family:var(--body);font-weight:600}
+.bubble::after{content:'';position:absolute;left:var(--tail);bottom:calc(var(--u)*-1.7);margin-left:calc(var(--u)*-1.3);border-left:calc(var(--u)*1.3) solid transparent;border-right:calc(var(--u)*1.3) solid transparent;border-top:calc(var(--u)*1.9) solid #fff}
+.bname{display:block;font:700 calc(var(--u)*1.8) var(--mono);color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:calc(var(--u)*.3)}
+.btext{margin:0}.btext mark{background:none;color:var(--accent)}
+.storytitle{position:absolute;left:6%;right:6%;z-index:3;display:flex;flex-direction:column;align-items:center;text-align:center;gap:calc(var(--u)*1.2)}
+.storytitle .headline{width:100%;color:#fff;text-shadow:0 0 calc(var(--u)*.35) #2a1640,0 calc(var(--u)*.45) 0 #2a1640,0 0 calc(var(--u)*3) #000a}
+.storytitle .headline mark{color:#ffd23f}
+.storytitle .kicker{color:var(--on-accent);background:var(--accent);padding:0 .9em;border-radius:99px;box-shadow:0 0 0 .32em var(--accent)}
+.storytext{position:absolute;left:50%;transform:translateX(-50%);z-index:3;background:#fffaf0f2;color:#2d2a32;border-radius:calc(var(--u)*2.2);padding:calc(var(--u)*1.3) calc(var(--u)*2.8);box-shadow:0 calc(var(--u)*.6) calc(var(--u)*2.4) #0004;text-align:center}
+.stext{margin:0;font-weight:600}.stext mark{background:none;color:var(--accent)}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:calc(var(--u)*1.6);justify-content:center;min-height:0;min-width:0}
+.steps li{display:flex;align-items:center;gap:calc(var(--u)*1.8);position:relative;background:var(--chip-bg);border:calc(var(--u)*.15) solid var(--card-edge);border-radius:calc(var(--u)*1.4);padding:calc(var(--u)*1.3) calc(var(--u)*2)}
+.steps .num{flex:none;display:grid;place-items:center;width:calc(var(--u)*5);height:calc(var(--u)*5);border-radius:50%;background:var(--accent);color:var(--on-accent);font:700 calc(var(--u)*2.6) var(--display);box-shadow:0 0 0 calc(var(--u)*.7) color-mix(in srgb,var(--accent) 25%,transparent)}
+.steps .item{flex:1;min-width:0;font-weight:600}
+.storytitle .storytext.below{position:relative;left:auto;top:auto;transform:none;margin-top:calc(var(--u)*.8);width:auto;max-width:100%}
+.f-16x9 .storytitle{top:calc(var(--u)*9)}.f-16x9 .storytext{top:calc(var(--u)*9);width:72%}.f-16x9 .storytitle .storytext.below{width:80%}
+.f-9x16 .storytitle{top:calc(var(--u)*16)}.f-9x16 .storytext{top:calc(var(--u)*12);width:88%}.f-9x16 .storytitle .storytext.below{width:96%}
+.f-1x1 .storytitle{top:calc(var(--u)*9)}.f-1x1 .storytext{top:calc(var(--u)*9);width:86%}.f-1x1 .storytitle .storytext.below{width:92%}
+.f-16x9 .t-steps.no-vis{grid-template-columns:.85fr 1.15fr;align-items:center}
+.f-16x9 .t-steps.has-vis{grid-template-columns:1fr 1.05fr;grid-template-rows:auto 1fr;align-items:center}
+.f-16x9 .t-steps.has-vis .media{grid-column:2;grid-row:1/3;height:100%}
+.f-9x16 .t-steps,.f-1x1 .t-steps{grid-template-rows:auto auto 1fr}
+.f-1x1 .t-steps.no-vis{grid-template-rows:auto 1fr}
+${CHARACTER_CSS}
+${BACKGROUND_CSS}
 
 /* ---- 16:9 ---- */
 .f-16x9{--capsize:3.6;--chipsize:2.3;--tagsize:2.1;--btnsize:3.4;--logosize:17}

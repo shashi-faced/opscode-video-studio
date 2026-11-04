@@ -1,0 +1,95 @@
+// Video types: one recipe per kind of video. The type sets the default theme, music and
+// format, which templates fit, and how the video should open and close. Small models read
+// these recipes (docs.mjs) and the validator checks against them.
+
+export const TYPE_RECIPES = {
+  ad: {
+    label: 'Ad / promo',
+    use: 'Sell a product, shop, app or offer.',
+    theme: 'night-saffron', music: 'indian-electronic',
+    templates: ['title', 'feature', 'bullets', 'split', 'stat', 'quote', 'dialogue', 'cta'],
+    first: ['title', 'story'], last: ['cta'],
+    scenes: '5-8 scenes, 25-45 s',
+    tips: ['Open with the hook in ≤ 6 words.', 'End with a cta: product name + button text.'],
+  },
+  demo: {
+    label: 'Product demo',
+    use: 'Walk through an app or website with real screenshots.',
+    theme: 'clean-light', music: 'corporate-upbeat',
+    templates: ['title', 'feature', 'split', 'steps', 'bullets', 'stat', 'cta'],
+    first: ['title'], last: ['cta'],
+    scenes: '5-8 scenes, 30-60 s',
+    tips: ['Capture screenshots with video_capture and show them with "feature".', 'One feature per scene.'],
+  },
+  explainer: {
+    label: 'Explainer / education',
+    use: 'Teach or explain an idea, science topic or process.',
+    theme: 'clean-light', music: 'ambient',
+    templates: ['title', 'story', 'dialogue', 'steps', 'bullets', 'split', 'stat'],
+    first: ['title', 'story'], last: ['bullets', 'story', 'cta', 'steps'],
+    scenes: '6-10 scenes, 45-90 s',
+    tips: ['A teacher or curious kid character asking questions makes ideas easy to follow.', 'End with a short recap (bullets) or a story scene.'],
+  },
+  story: {
+    label: 'Story / cartoon',
+    use: 'Kids stories, fables, moral stories and cartoons with characters.',
+    theme: 'storybook', music: 'playful', captions: true,
+    templates: ['story', 'dialogue'],
+    first: ['story'], last: ['story'],
+    scenes: '6-12 scenes, 45-120 s',
+    tips: [
+      'Define every character once in "cast" (id, kind, name). Use the same ids in every scene.',
+      'First scene: a story scene with the title as "headline" and the main character.',
+      'Middle: story scenes for what happens (narration) and dialogue scenes when characters talk.',
+      'Last scene: a story scene with headline "The End" and the moral as "text".',
+      'Do not use bullets, stat, feature or cta in a story.',
+    ],
+  },
+  reel: {
+    label: 'Reel / Short',
+    use: 'Fast vertical video for Instagram, YouTube Shorts, WhatsApp status.',
+    theme: 'midnight-neon', music: 'indian-electronic', format: '9:16',
+    templates: ['title', 'story', 'dialogue', 'bullets', 'stat', 'feature', 'quote', 'cta'],
+    first: ['title', 'story'], last: ['cta', 'story'],
+    scenes: '4-6 scenes, 15-30 s',
+    tips: ['Very short narration (≤ 15 words per scene).', 'Hook in the first scene.'],
+  },
+  howto: {
+    label: 'How-to / tutorial',
+    use: 'Show how to do something step by step (recipe, setup, process).',
+    theme: 'clean-light', music: 'ambient',
+    templates: ['title', 'steps', 'feature', 'split', 'bullets', 'dialogue', 'cta'],
+    first: ['title'], last: ['cta', 'bullets', 'steps'],
+    scenes: '4-8 scenes, 30-75 s',
+    tips: ['Use "steps" for the procedure, "feature" for screens.'],
+  },
+  greeting: {
+    label: 'Greeting / wishes',
+    use: 'Festival, birthday, anniversary or thank-you wishes.',
+    theme: 'festive', music: 'festive',
+    templates: ['story', 'title', 'dialogue', 'quote', 'cta'],
+    first: ['story', 'title'], last: ['story', 'cta'],
+    scenes: '3-5 scenes, 10-25 s',
+    tips: ['Use the "festival" background for Diwali, Holi, Eid, Christmas or New Year.', 'Characters cheering or waving make it warm.'],
+  },
+  announcement: {
+    label: 'Announcement',
+    use: 'News, launch, event, hiring or update.',
+    theme: 'corporate-blue', music: 'corporate-upbeat',
+    templates: ['title', 'bullets', 'stat', 'split', 'quote', 'cta'],
+    first: ['title'], last: ['cta'],
+    scenes: '3-6 scenes, 20-40 s',
+    tips: ['Say the news in the title; details in bullets; date or link in the cta.'],
+  },
+};
+
+export const TYPE_ALIASES = {
+  advert: 'ad', advertisement: 'ad', promo: 'ad', promotion: 'ad', commercial: 'ad', sale: 'ad', marketing: 'ad',
+  'product-demo': 'demo', walkthrough: 'demo', showcase: 'demo', 'app-demo': 'demo',
+  explain: 'explainer', education: 'explainer', educational: 'explainer', lesson: 'explainer', science: 'explainer',
+  'kids-story': 'story', kids: 'story', cartoon: 'story', fable: 'story', 'moral-story': 'story', animation: 'story', tale: 'story', 'bedtime-story': 'story',
+  short: 'reel', shorts: 'reel', 'instagram-reel': 'reel', status: 'reel', tiktok: 'reel',
+  tutorial: 'howto', 'how-to': 'howto', guide: 'howto', recipe: 'howto', steps: 'howto',
+  wish: 'greeting', wishes: 'greeting', festival: 'greeting', birthday: 'greeting', 'festival-greeting': 'greeting', diwali: 'greeting', invitation: 'greeting',
+  news: 'announcement', launch: 'announcement', update: 'announcement', event: 'announcement', hiring: 'announcement',
+};

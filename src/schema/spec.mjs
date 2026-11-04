@@ -2,10 +2,29 @@
 // Used by the validator, the normaliser, `templates` docs and the JSON Schema export.
 
 export const FORMATS = ['16:9', '9:16', '1:1'];
-export const THEMES = ['night-saffron', 'clean-light', 'midnight-neon', 'corporate-blue', 'warm-paper'];
+export const THEMES = ['night-saffron', 'clean-light', 'midnight-neon', 'corporate-blue', 'warm-paper', 'storybook', 'festive'];
 export const MASCOTS = ['robot', 'dev', 'founder'];
 export const MOODS = ['happy', 'worried'];
-export const MUSIC_STYLES = ['indian-electronic', 'corporate-upbeat', 'ambient', 'none'];
+export const MUSIC_STYLES = ['indian-electronic', 'corporate-upbeat', 'ambient', 'playful', 'festive', 'none'];
+
+// What kind of video this is. Each type has its own scene recipe, theme and music (see types.mjs).
+export const VIDEO_TYPES = ['ad', 'demo', 'explainer', 'story', 'reel', 'howto', 'greeting', 'announcement'];
+
+// Animated cartoon characters (characters.mjs). Humans, animals and objects with faces.
+export const CHARACTER_KINDS = [
+  'boy', 'girl', 'man', 'woman', 'grandpa', 'grandma',
+  'rabbit', 'cat', 'dog', 'bear', 'panda', 'fox', 'elephant', 'lion', 'mouse', 'owl',
+  'robot', 'star', 'sun', 'moon', 'cloud',
+];
+export const POSES = ['idle', 'wave', 'walk', 'jump', 'cheer', 'point', 'think', 'dance'];
+export const CHARACTER_MOODS = ['happy', 'sad', 'surprised', 'angry', 'worried', 'sleepy'];
+export const POSITIONS = ['far-left', 'left', 'center', 'right', 'far-right'];
+export const ENTRANCES = ['none', 'walk-in', 'pop', 'fly-in', 'fade'];
+export const SIZES = ['small', 'medium', 'large'];
+export const SKINS = ['light', 'medium', 'tan', 'dark'];
+// Illustrated scene backgrounds (backgrounds.mjs). Outdoor ones change with "time".
+export const BACKGROUNDS = ['meadow', 'forest', 'mountains', 'beach', 'village', 'city', 'sky', 'space', 'underwater', 'home', 'bedroom', 'classroom', 'office', 'festival'];
+export const TIMES = ['day', 'sunset', 'night'];
 export const VOICE_PROVIDERS = ['edge', 'none'];
 export const TRANSITIONS = ['fade', 'slide', 'zoom'];
 export const TAG_TONES = ['accent', 'ok', 'alert'];
@@ -27,6 +46,23 @@ const num = (min, max, extra = {}) => ({ type: 'num', min, max, ...extra });
 const list = (of, max, extra = {}) => ({ type: 'list', of, max, ...extra });
 const obj = (fields, extra = {}) => ({ type: 'obj', fields, ...extra });
 const enm = (values, extra = {}) => ({ type: 'enum', values, ...extra });
+
+// A character placed in a scene: a cast id (or a kind such as "rabbit") plus how it acts.
+const character = obj({
+  who: str(24, { required: true, doc: 'cast id, or a character kind like "rabbit"' }),
+  pose: enm(POSES, { doc: 'what it does: idle, wave, walk, jump, cheer, point, think, dance' }),
+  mood: enm(CHARACTER_MOODS, { doc: 'face: happy, sad, surprised, angry, worried, sleepy' }),
+  position: enm(POSITIONS, { doc: 'where it stands; leave empty to spread characters evenly' }),
+  facing: enm(['left', 'right'], { doc: 'which way it looks' }),
+  enter: enm(ENTRANCES, { doc: 'how it appears: walk-in, pop, fly-in, fade' }),
+  size: enm(SIZES),
+});
+// One spoken line: the character says it in its own voice, with a speech bubble.
+const line = obj({
+  who: str(24, { required: true, doc: 'cast id of the speaker' }),
+  text: str(140, { required: true, soft: 90, doc: 'what the character says: one short sentence' }),
+  mood: enm(CHARACTER_MOODS, { doc: 'face while saying it' }),
+});
 
 const box = obj({
   x: num(0, 1, { required: true, doc: 'left edge, fraction of image width (0-1)' }),
@@ -112,6 +148,39 @@ export const TEMPLATES = {
     },
     example: { template: 'quote', quote: 'It found the bug while I was making chai.', author: 'Priya S.', role: 'Frontend developer', narration: 'Developers love it.' },
   },
+  story: {
+    use: 'Cartoon scene: an illustrated background with animated characters. Narration tells the story; optional lines make characters speak. A story scene with a headline is a title card ("Miko and the Fallen Star", "The End").',
+    fields: {
+      background: enm(BACKGROUNDS, { doc: 'illustrated place' }),
+      time: enm(TIMES, { doc: 'day, sunset or night (outdoor backgrounds)' }),
+      characters: list(character, 4, { doc: '0-4 characters in the scene' }),
+      headline: str(70, { soft: 40, doc: 'title card text; leave empty in normal story scenes' }),
+      kicker: str(40, { doc: 'small label above the headline' }),
+      text: str(140, { soft: 100, doc: 'one storybook line shown on screen (optional)' }),
+      lines: list(line, 6, { doc: 'characters speaking, each in their own voice (optional)' }),
+    },
+    example: { template: 'story', background: 'meadow', time: 'night', characters: [{ who: 'miko', pose: 'wave', mood: 'surprised', position: 'left' }, { who: 'tara', enter: 'fly-in', mood: 'sad', position: 'right' }], narration: 'One night, Miko saw a little star fall into the grass.' },
+  },
+  dialogue: {
+    use: 'Characters talk to each other with speech bubbles, each in their own voice. Use for conversations in stories, explainers and ads.',
+    fields: {
+      background: enm(BACKGROUNDS),
+      time: enm(TIMES),
+      characters: list(character, 4, { doc: 'who is on screen; defaults to the speakers' }),
+      lines: list(line, 6, { required: true, min: 1, doc: '1-6 lines in order' }),
+    },
+    example: { template: 'dialogue', background: 'meadow', time: 'night', lines: [{ who: 'tara', text: 'I fell from the sky and cannot find my way home.', mood: 'sad' }, { who: 'miko', text: 'Do not worry! I will help you.', mood: 'happy' }] },
+  },
+  steps: {
+    use: 'Numbered steps that appear one by one (how-to, recipe, process), with an optional picture.',
+    fields: {
+      kicker: str(40),
+      headline: str(70, { required: true, soft: 40 }),
+      steps: list(str(70), 6, { required: true, min: 2, doc: '2-6 short steps, in order' }),
+      image: { type: 'path', doc: 'optional picture shown beside the steps' },
+    },
+    example: { template: 'steps', kicker: 'Get started', headline: 'Set up in *3 steps*', steps: ['Download the app', 'Sign in with Google', 'Ask your first question'], narration: 'Getting started takes three quick steps.' },
+  },
   cta: {
     use: 'Closing scene: name, line, button, badges.',
     fields: {
@@ -128,6 +197,7 @@ COMMON_FIELDS.template.values = Object.keys(TEMPLATES);
 
 export const TOP_FIELDS = {
   version: num(1, 1),
+  type: enm(VIDEO_TYPES, { doc: 'kind of video: ad, demo, explainer, story, reel, howto, greeting, announcement. Sets the scene recipe, theme and music' }),
   title: str(80, { doc: 'name of the video; also used for the output file name' }),
   format: enm(FORMATS, { doc: '16:9 YouTube/website, 9:16 Reels/Shorts, 1:1 feed post' }),
   theme: enm(THEMES),
@@ -137,7 +207,18 @@ export const TOP_FIELDS = {
   music: obj({ style: enm(MUSIC_STYLES), volume: num(0, 1), file: { type: 'path', doc: 'your own music file instead of generated music' } }),
   captions: { type: 'bool' },
   fps: num(12, 60),
-  scenes: { type: 'list', of: null, required: true, min: 2, max: 12, doc: '2-12 scenes; first "title", last "cta"' },
+  cast: list(obj({
+    id: str(24, { required: true, doc: 'short id used in scenes, e.g. "miko"' }),
+    kind: enm(CHARACTER_KINDS, { required: true, doc: 'what the character is' }),
+    name: str(30, { doc: 'display name, e.g. Miko' }),
+    color: { type: 'color', doc: 'main colour: fur, or clothes for people' },
+    hair: { type: 'color', doc: 'hair colour (people)' },
+    skin: enm(SKINS, { doc: 'skin tone (people)' }),
+    voice: str(60, { doc: 'voice for this character; default picks one from the narrator language' }),
+    pitch: str(8, { doc: 'voice pitch, e.g. +20% for a child, -15% for a big animal' }),
+    rate: str(8, { doc: 'speaking speed, e.g. +5%' }),
+  }), 6, { doc: 'the characters of a story; scenes refer to them by id' }),
+  scenes: { type: 'list', of: null, required: true, min: 2, max: 16, doc: '2-16 scenes; the recipe depends on the video type' },
 };
 
 export const DEFAULTS = {
