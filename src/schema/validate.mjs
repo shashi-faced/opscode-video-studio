@@ -295,7 +295,8 @@ function checkField(spec, value, p, errors, warnings, ctx) {
   }
 }
 
-export function validate(input, { baseDir = process.cwd() } = {}) {
+/** limits: { scenes, cast } raise the list limits (films have many shots and characters). */
+export function validate(input, { baseDir = process.cwd(), limits = {} } = {}) {
   const errors = [], warnings = [];
   const sb = normalise(input, warnings);
   const ctx = { baseDir };
@@ -305,12 +306,12 @@ export function validate(input, { baseDir = process.cwd() } = {}) {
     if (k === 'scenes') continue;
     if (k === 'captions' && sb[k] === false) continue;
     if (k === 'platform' && !PLATFORM_IDS.includes(sb[k])) { errors.push({ path: 'platform', message: `unknown platform "${sb[k]}"`, fix: `use one of: ${PLATFORM_IDS.join(', ')}` }); continue; }
-    checkField(spec, sb[k], k, errors, warnings, ctx);
+    checkField(k === 'cast' && limits.cast ? { ...spec, max: limits.cast } : spec, sb[k], k, errors, warnings, ctx);
   }
   for (const k of Object.keys(sb)) if (!(k in TOP_FIELDS)) warnings.push({ path: k, message: `unknown field "${k}" ignored` });
 
   if (Array.isArray(sb.scenes)) {
-    checkField({ type: 'list', min: 2, max: TOP_FIELDS.scenes.max }, sb.scenes, 'scenes', errors, warnings, ctx);
+    checkField({ type: 'list', min: limits.minScenes ?? 2, max: limits.scenes || TOP_FIELDS.scenes.max }, sb.scenes, 'scenes', errors, warnings, ctx);
     sb.scenes.forEach((s, i) => {
       const p = `scenes[${i}]`;
       if (!isObj(s)) { errors.push({ path: p, message: 'must be an object', fix: 'use { "template": "...", ... }' }); return; }

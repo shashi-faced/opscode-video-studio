@@ -45,6 +45,34 @@
 - Length: validator estimates speech length per platform (error over the max); QA and render report the real length.
 - Test renders: examples/insta-reel.json, 41.5 s in 79 s, pop captions in sync, text clear of the safe zones; youtube-ad.json with thumbnail + description; 4:5 karaoke. 32 tests pass.
 
+## v0.6.0 (2026-11-07): films (plan 11, Phase 1)
+
+- New `film.json`: the storyboard's top fields plus `sequences[]` of `shots[]` (a shot is a normal scene with an optional `id`). A plain storyboard is read as one sequence. Up to 400 shots and 24 cast members; errors point at `sequences[i].shots[k]`.
+- `film-render` (tool `video_film_render`):
+  - every shot is compiled on its own and rendered to a silent H.264 segment (x264 veryfast, crf 18);
+  - a pool of Chrome workers renders them (default cores − 2, max 6), longest shots first;
+  - segments are cached by a hash of engine version, encoder settings, fps, size and the compiled page; unchanged shots are reused;
+  - `--only` renders chosen shots; a failed shot does not stop the others.
+- Voice is synthesised once per shot in parallel batches; the film timeline uses whole-frame shot lengths, so sound never drifts. Music: one synth cue per sequence (its own style if set), crossfaded at sequence cuts. Mix and −14 LUFS as before.
+- Joined with the concat demuxer (no re-encode). Extras: `.srt` captions, chapters (one per sequence), poster. `project.json` keeps per-shot status; `film-status` (tool `video_film_status`) reports it.
+- New `cut` transition; film shots cut by default (the default fade made each shot fade in from the empty stage).
+- Chrome draws on the graphics card when it can (Vulkan through ANGLE; probed once per run; `OPSCODE_VIDEO_GPU=0/1` to force). Short renders keep CPU drawing.
+- Test machine: i7-1165G7 (4 cores / 8 threads), Intel Xe, 31 GB.
+
+| Test | Result |
+|---|---|
+| 8 shots, 42 s, no voice: CPU drawing, 4 workers | 103 s (CPU ~80 % busy, Chrome's GPU process the bottleneck) |
+| same, graphics card, 4 or 6 workers | 66–67 s |
+| same, x264 ultrafast | 59 s but 6× larger file, so not used |
+| No changes since last render | 3 s (all 8 shots cached) |
+| One shot's text edited | 25 s (1 shot rendered, 7 reused) |
+| **60 shots, 12 sequences, 6 min 29 s, Hindi voice, 2 music styles** | **5 min 49 s** (0.9 s per second of film), 36 MB, 12 chapters |
+| Short reel (`render`, unchanged path) | 37.9 s video in 61 s, as before |
+
+- Phase 1 target was "5-min film in < 4 min with 6 workers": reached 0.9 s/s (5 min ≈ 4.5 min) on this laptop; the CPU is saturated, so more speed needs fewer pixels per frame or a faster machine.
+- App: package tool calls named `*film_render*` may run 3 h (others 25 min); a cut-off render resumes from the cache.
+- 39 tests pass (7 new in `test/film.test.mjs`).
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.

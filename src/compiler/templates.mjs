@@ -202,6 +202,7 @@ export const TEMPLATE_CSS = `
 .scene.tr-fade .in{animation:sc-fade .5s ease both}
 .scene.tr-slide .in{animation:sc-slide .6s cubic-bezier(.2,.8,.2,1) both}
 .scene.tr-zoom .in{animation:sc-zoom .7s cubic-bezier(.2,.8,.2,1) both}
+.scene.tr-cut .in{animation:none}
 
 .txt{display:flex;flex-direction:column;gap:calc(var(--u)*1.4);min-width:0;min-height:0;position:relative}
 .fit{margin:0;overflow-wrap:anywhere}

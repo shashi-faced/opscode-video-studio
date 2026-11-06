@@ -31,6 +31,9 @@ const HELP = `opscode-video — storyboard JSON to animated MP4
   check <storyboard.json>       layout QA + contact sheet (no audio)
   preview <storyboard.json>     build the HTML preview page
   render <storyboard.json> [--out file.mp4] [--fps 30] [--no-voice]
+  film-render <film.json> [--workers 6] [--only id1,id2] [--force] [--no-voice] [--out file.mp4]
+                                long video from sequences of shots; parallel, cached, resumable
+  film-status <film.json>       shots done / failed / not rendered
   capture <url> <out.png> [--width 1440 --height 900 --crop x,y,w,h]
   tool <name> '<json params>'   generic bridge used by the Opscode app
   tools                         list tool definitions (JSON)
@@ -63,7 +66,9 @@ async function main() {
         return done({ ok: true, storyboard: file, shots: path.join(dir, 'shots') });
       }
       case 'validate': {
-        const r = validateFile(pos[0]);
+        const { isFilm, validateFilmFile } = await import('../src/film/film.mjs');
+        let raw = null; try { raw = JSON.parse(fs.readFileSync(pos[0], 'utf8')); } catch { /* reported below */ }
+        const r = isFilm(raw) ? validateFilmFile(pos[0]) : validateFile(pos[0]);
         return done({ ok: r.ok, errors: r.errors, warnings: r.warnings }, r.ok ? 0 : 2);
       }
       case 'check':
@@ -77,6 +82,16 @@ async function main() {
         const { render } = await import('../src/render/render.mjs');
         const r = await render(pos[0], { out: flags.out, fps: flags.fps ? +flags.fps : undefined, voice: flags['no-voice'] ? 'skip' : 'auto', onProgress: progress });
         return done(r);
+      }
+      case 'film-render': {
+        const { renderFilm } = await import('../src/film/renderFilm.mjs');
+        const r = await renderFilm(pos[0], { out: flags.out, fps: flags.fps ? +flags.fps : undefined, workers: flags.workers ? +flags.workers : undefined, only: flags.only ? String(flags.only).split(',') : undefined, force: !!flags.force, voice: flags['no-voice'] ? 'skip' : 'auto', onProgress: progress });
+        return done(r, r.ok ? 0 : 2);
+      }
+      case 'film-status': {
+        const { filmStatus } = await import('../src/film/renderFilm.mjs');
+        const r = filmStatus(pos[0]);
+        return done(r, r.ok ? 0 : 2);
       }
       case 'capture': {
         const r = await runTool('video_capture', { url: pos[0], out: pos[1], width: flags.width, height: flags.height, crop: flags.crop, waitMs: flags.wait });

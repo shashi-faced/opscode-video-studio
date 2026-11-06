@@ -52,6 +52,27 @@ Set `"platform"` to where the video will be posted. It sets the frame size, keep
 
 `captions` is `true`, `false`, or `{ "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top" }`. Captions are timed to the spoken words using the voice's word timings: `pop` shows 1–3 big words at a time (reels), `karaoke` lights up the word being spoken. Examples: [insta-reel.json](examples/insta-reel.json), [youtube-ad.json](examples/youtube-ad.json).
 
+## Long videos (films)
+
+For anything longer than about 2 minutes, write a **film** instead of a storyboard: the same top fields plus `sequences`, each a list of short **shots** (a shot is a normal scene of 3–8 s, with an optional `id`).
+
+```json
+{ "title": "Miko and the Star", "type": "story", "format": "16:9", "voice": { "voice": "hi-IN-SwaraNeural" }, "cast": [ ... ],
+  "sequences": [
+    { "id": "night", "title": "A star falls", "shots": [ { "id": "open", "template": "story", ... }, ... ] },
+    { "id": "journey", "title": "To the owl", "music": { "style": "playful" }, "shots": [ ... ] } ] }
+```
+
+`film-render` builds every shot as its own video segment:
+- Segments render on several Chrome workers at once (CPU cores − 2, at most 6), drawing on the graphics card when Chrome can use it.
+- Each segment is cached by a hash of exactly what it draws, so after an edit only the changed shots render again, and a stopped render resumes where it left off.
+- Voice and music are made once for the whole film; each sequence gets its own music cue, crossfaded at the cut.
+- The segments are joined without re-encoding.
+- Output: the MP4, an `.srt` captions file, a chapters list (one chapter per sequence) and a poster.
+- The project folder `out/<title>/` holds `project.json` (status of every shot) and `shots/<id>/`.
+
+A plain storyboard also works with `film-render` (one sequence, one shot per scene).
+
 ## Commands
 
 | Command | What it does |
@@ -62,6 +83,8 @@ Set `"platform"` to where the video will be posted. It sets the frame size, keep
 | `validate <file>` | Errors with exact fixes; auto-corrects common slips |
 | `check <file>` | Layout checks + `contact-sheet.jpg` |
 | `render <file> [--out x.mp4] [--fps 30] [--no-voice]` | Full video |
+| `film-render <film.json> [--workers 6] [--only id1,id2] [--force] [--no-voice]` | Long video from sequences of shots: parallel, cached, resumable |
+| `film-status <film.json>` | Which shots are done, failed or not rendered yet |
 | `capture <url> <out.png> [--crop x,y,w,h]` | Screenshot a page or local app |
 | `tool <name> --b64 <json>` | Bridge used by the Opscode app |
 | `agent-manifest` | Manifest + tool definitions read by the app on install |

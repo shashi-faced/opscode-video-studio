@@ -79,6 +79,8 @@ User prompt ──► Video Studio agent (any LLM)
 | [06-agent-tools-prompt.md](06-agent-tools-prompt.md) | CLI, tool definitions, system prompt for small models |
 | [07-packaging-store.md](07-packaging-store.md) | Downloadable package, Agent Store entry, generic app hook |
 | [08-testing-eval.md](08-testing-eval.md) | Unit tests, golden renders, small-model evaluation |
+| [10-looks-platforms-plan.md](10-looks-platforms-plan.md) | Platforms, captions, looks (text, motion, photo, 3D), parallel render |
+| [11-long-cinematic-cartoons.md](11-long-cinematic-cartoons.md) | Long and cinematic cartoons: any character, shot-based films, a parallel team of agents, Deep mode |
 
 ## 6. Folder layout
 

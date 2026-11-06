@@ -9,6 +9,8 @@ import { render } from './render/render.mjs';
 import { doctor } from './deps/doctor.mjs';
 import { templatesDoc, EXAMPLE, STORY_EXAMPLE, resolveType } from './docs.mjs';
 import { capture } from './render/capture.mjs';
+import { validateFilmFile, isFilm } from './film/film.mjs';
+import { loadStoryboard } from './schema/validate.mjs';
 
 const fmtErrors = (errs) => errs.map((e, i) => `${i + 1}. ${e.path || '(file)'}: ${e.message}${e.fix ? ` → FIX: ${e.fix}` : ''}`).join('\n');
 const fmtWarn = (w) => w.length ? `\nAuto-corrected / notes:\n${w.slice(0, 12).map(x => `- ${x.path}: ${x.message}`).join('\n')}` : '';
@@ -24,6 +26,8 @@ export const TOOL_DEFS = [
   { name: 'video_validate', description: 'Validate a storyboard JSON file. Returns errors, each with an exact fix.', parameters: { type: 'object', properties: { storyboard: { type: 'string', description: 'path to storyboard.json' } }, required: ['storyboard'] } },
   { name: 'video_preview', description: 'Build the video without rendering and run layout checks. Returns problems with fixes and a contact sheet image of every scene. Run before video_render.', parameters: { type: 'object', properties: { storyboard: { type: 'string', description: 'path to storyboard.json' } }, required: ['storyboard'] } },
   { name: 'video_render', description: 'Render the final MP4 with voiceover, music and captions. Takes 1-3 minutes.', parameters: { type: 'object', properties: { storyboard: { type: 'string', description: 'path to storyboard.json' }, out: { type: 'string', description: 'optional output .mp4 path' }, fps: { type: 'number', description: 'optional, default 30' } }, required: ['storyboard'] } },
+  { name: 'video_film_render', description: 'Render a long video (film) made of sequences of short shots: { "title", ...storyboard fields, "sequences": [ { "id", "title", "music": { "style" }, "shots": [ <scene with optional "id">, ... ] } ] }. Shots render in parallel and are cached, so changing one shot re-renders only that shot. Also accepts a normal storyboard. Can take several minutes for long films.', parameters: { type: 'object', properties: { film: { type: 'string', description: 'path to film.json (or storyboard.json)' }, workers: { type: 'number', description: 'parallel render workers (default: CPU cores - 2, max 6)' }, only: { type: 'array', items: { type: 'string' }, description: 'optional: render only these shot ids' }, force: { type: 'boolean', description: 'ignore the cache and render every shot again' }, out: { type: 'string', description: 'optional output .mp4 path' } }, required: ['film'] } },
+  { name: 'video_film_status', description: 'Show a film project: sequences, shots done / failed / not rendered yet, last render. Use it to resume a long render.', parameters: { type: 'object', properties: { film: { type: 'string', description: 'path to film.json' } }, required: ['film'] } },
   { name: 'video_capture', description: 'Screenshot a web page or local app URL into a PNG for use in a storyboard. Optional crop in pixels.', parameters: { type: 'object', properties: { url: { type: 'string' }, out: { type: 'string', description: 'output .png path' }, width: { type: 'number' }, height: { type: 'number' }, crop: { type: 'string', description: 'x,y,w,h in pixels (optional)' }, waitMs: { type: 'number' } }, required: ['url', 'out'] } },
   { name: 'video_doctor', description: 'Check that Chrome, ffmpeg and voices work. Use install=true to download a missing browser.', parameters: { type: 'object', properties: { install: { type: 'boolean' } }, required: [] } },
 ];
@@ -47,6 +51,12 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
 
     case 'video_validate': {
       const file = abs(params.storyboard); const miss = needFile(file); if (miss) return miss;
+      let raw = null; try { raw = loadStoryboard(file); } catch { /* reported by validateFile */ }
+      if (isFilm(raw)) {
+        const f = validateFilmFile(file);
+        if (f.ok) return { ok: true, text: `Film is valid: ${f.sequences.length} sequence(s), ${f.shots.length} shot(s). Next: call video_film_render.${fmtWarn(f.warnings)}`, data: { warnings: f.warnings, sequences: f.sequences } };
+        return { ok: false, text: `Film has ${f.errors.length} error(s). Fix each one, then call video_validate again:\n${fmtErrors(f.errors)}${fmtWarn(f.warnings)}`, data: { errors: f.errors, warnings: f.warnings } };
+      }
       const v = validateFile(file);
       if (v.ok) return { ok: true, text: `Storyboard is valid (${v.storyboard.scenes.length} scenes, format ${v.storyboard.format}). Next: call video_preview.${fmtWarn(v.warnings)}`, data: { warnings: v.warnings } };
       return { ok: false, text: `Storyboard has ${v.errors.length} error(s). Fix each one with edit_file, then call video_validate again:\n${fmtErrors(v.errors)}${fmtWarn(v.warnings)}`, data: { errors: v.errors, warnings: v.warnings } };
@@ -86,6 +96,35 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
         if (e.details) return { ok: false, text: `Storyboard is not valid:\n${fmtErrors(e.details.errors)}`, data: e.details };
         return { ok: false, text: `Render failed: ${e.message}${e.fix ? `\nFIX: ${e.fix}` : ''}` };
       }
+    }
+
+    case 'video_film_render': {
+      const file = abs(params.film || params.storyboard); const miss = needFile(file); if (miss) return miss;
+      try {
+        const { renderFilm } = await import('./film/renderFilm.mjs');
+        const r = await renderFilm(file, { out: abs(params.out), workers: params.workers ? Number(params.workers) : undefined, only: params.only, force: !!params.force, onProgress });
+        if (!r.ok) return { ok: false, text: `Film not finished: ${r.error}.\n${r.failures.map(f => `- shot ${f.shot}: ${f.error}`).join('\n')}${r.notRendered.length ? `\nNot rendered: ${r.notRendered.join(', ')}` : ''}\nFIX: ${r.fix}`, data: r };
+        const mins = (s) => (s >= 60 ? `${Math.floor(s / 60)} min ${Math.round(s % 60)} s` : `${Math.round(s)} s`);
+        return {
+          ok: true,
+          text: `Film rendered: ${r.file}\n${r.width}×${r.height}, ${mins(r.duration)}, ${r.sequences} sequence(s), ${r.shots} shots (${r.rendered} rendered, ${r.cached} reused), ${r.workers} workers, ${r.sizeMB} MB. Took ${mins(r.seconds)}.${r.srt ? `\nCaptions: ${r.srt}` : ''}${r.chapters ? `\nChapters: ${r.chapters}` : ''}\nProject folder: ${r.project}\nTell the user where the file is.`,
+          image: r.poster ? imageData(r.poster) : undefined,
+          imageFile: r.poster || undefined,
+          data: r,
+        };
+      } catch (e) {
+        if (e.details) return { ok: false, text: `Film is not valid:\n${fmtErrors(e.details.errors)}`, data: e.details };
+        return { ok: false, text: `Film render failed: ${e.message}${e.fix ? `\nFIX: ${e.fix}` : ''}` };
+      }
+    }
+
+    case 'video_film_status': {
+      const file = abs(params.film || params.storyboard); const miss = needFile(file); if (miss) return miss;
+      const { filmStatus } = await import('./film/renderFilm.mjs');
+      const s = filmStatus(file);
+      if (!s.project) return { ok: false, text: `Film is not valid:\n${fmtErrors(s.errors)}`, data: s };
+      const failed = s.rows.filter(r => r.status === 'failed').map(r => `- ${r.id}: ${r.error}`);
+      return { ok: true, text: `"${s.title}": ${s.shots} shots in ${s.sequences.length} sequence(s). Done ${s.done}, failed ${s.failed}, waiting ${s.queued}, never rendered ${s.new}.${s.lastRender ? `\nLast film: ${s.lastRender.file} (${Math.round(s.lastRender.duration)} s)` : ''}${failed.length ? `\nFailed:\n${failed.join('\n')}` : ''}\nCall video_film_render to finish (finished shots are reused).`, data: s };
     }
 
     case 'video_capture': {

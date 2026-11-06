@@ -30,7 +30,7 @@ export const SKINS = ['light', 'medium', 'tan', 'dark'];
 export const BACKGROUNDS = ['meadow', 'forest', 'mountains', 'beach', 'village', 'city', 'sky', 'space', 'underwater', 'home', 'bedroom', 'classroom', 'office', 'festival'];
 export const TIMES = ['day', 'sunset', 'night'];
 export const VOICE_PROVIDERS = ['edge', 'none'];
-export const TRANSITIONS = ['fade', 'slide', 'zoom'];
+export const TRANSITIONS = ['fade', 'slide', 'zoom', 'cut'];
 export const TAG_TONES = ['accent', 'ok', 'alert'];
 
 export const VOICES = [

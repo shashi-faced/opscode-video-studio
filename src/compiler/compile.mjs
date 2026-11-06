@@ -14,7 +14,8 @@ import { escapeHtml } from '../timeline.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FORMAT_INDEX = { '16:9': 0, '9:16': 1, '1:1': 2, '4:5': 2 };
 
-export function compile(storyboard, timeline, { baseDir, buildDir }) {
+/** progress: false hides the scene progress bar (film shots are rendered one at a time). */
+export function compile(storyboard, timeline, { baseDir, buildDir, progress = true }) {
   fs.mkdirSync(path.join(buildDir, 'assets'), { recursive: true });
   const stage = STAGE[storyboard.format];
   const theme = resolveTheme(storyboard.theme, storyboard.accent);
@@ -55,7 +56,7 @@ export function compile(storyboard, timeline, { baseDir, buildDir }) {
   const plat = PLATFORMS[storyboard.platform];
   const safe = safePixels(storyboard.platform, stage.width, stage.height);
   const cap = storyboard.captions || null;
-  const stageCls = [stage.cls, cap ? `cap-${cap.style} cap-${cap.position}` : '', plat && plat.progress === false ? 'no-prog' : ''].filter(Boolean).join(' ');
+  const stageCls = [stage.cls, cap ? `cap-${cap.style} cap-${cap.position}` : '', (plat && plat.progress === false) || !progress ? 'no-prog' : ''].filter(Boolean).join(' ');
   const safeVars = `--st:${safe.top}px;--sb:${safe.bottom}px;--sl:${safe.left}px;--sr:${safe.right}px;--srf:${safe.rightFrom}px`;
   const scenesHtml = storyboard.scenes.map((sc, i) => {
     const ctx = { index: i, fi: FORMAT_INDEX[storyboard.format], asset, brandLogo, format: storyboard.format, cast, layout };
