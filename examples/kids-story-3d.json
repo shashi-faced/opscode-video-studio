@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "type": "story",
+  "title": "Miko aur Gira Tara 3D",
+  "format": "16:9",
+  "voice": {
+    "provider": "edge",
+    "voice": "hi-IN-SwaraNeural"
+  },
+  "cast": [
+    {
+      "id": "miko",
+      "kind": "rabbit",
+      "name": "मिको"
+    },
+    {
+      "id": "tara",
+      "kind": "star",
+      "name": "तारा"
+    },
+    {
+      "id": "dadaji",
+      "kind": "owl",
+      "name": "उल्लू दादाजी"
+    }
+  ],
+  "scenes": [
+    {
+      "template": "story",
+      "background": "meadow",
+      "time": "night",
+      "kicker": "एक प्यारी कहानी",
+      "headline": "मिको और *गिरा तारा*",
+      "characters": [
+        {
+          "who": "miko",
+          "pose": "wave",
+          "enter": "pop"
+        }
+      ],
+      "narration": "आज की कहानी है मिको की, एक छोटे से प्यारे खरगोश की।",
+      "camera": "wide"
+    },
+    {
+      "template": "story",
+      "background": "meadow",
+      "time": "night",
+      "characters": [
+        {
+          "who": "miko",
+          "mood": "surprised",
+          "position": "left"
+        },
+        {
+          "who": "tara",
+          "enter": "fly-in",
+          "mood": "sad",
+          "position": "right"
+        }
+      ],
+      "text": "एक रात, आसमान से एक नन्हा तारा घास में आ गिरा।",
+      "narration": "एक रात, मिको ने देखा कि आसमान से एक नन्हा तारा घास में आ गिरा।",
+      "camera": "dolly-in"
+    },
+    {
+      "template": "dialogue",
+      "lines": [
+        {
+          "who": "tara",
+          "text": "मैं आसमान से गिर गया हूँ। अब घर कैसे जाऊँ?",
+          "mood": "sad"
+        },
+        {
+          "who": "miko",
+          "text": "डरो मत! मैं तुम्हारी मदद करूँगा।",
+          "mood": "happy"
+        }
+      ],
+      "camera": "auto"
+    },
+    {
+      "template": "story",
+      "background": "forest",
+      "time": "night",
+      "characters": [
+        {
+          "who": "miko",
+          "pose": "walk",
+          "enter": "walk-in",
+          "position": "left"
+        },
+        {
+          "who": "tara",
+          "position": "center"
+        },
+        {
+          "who": "dadaji",
+          "position": "right",
+          "mood": "sleepy"
+        }
+      ],
+      "narration": "दोनों जंगल में उल्लू दादाजी के पास पहुँचे।",
+      "camera": "close"
+    },
+    {
+      "template": "dialogue",
+      "background": "forest",
+      "time": "night",
+      "characters": [
+        {
+          "who": "miko",
+          "position": "left"
+        },
+        {
+          "who": "dadaji",
+          "position": "right",
+          "pose": "point"
+        }
+      ],
+      "lines": [
+        {
+          "who": "miko",
+          "text": "दादाजी, तारे को घर कैसे भेजें?",
+          "mood": "worried"
+        },
+        {
+          "who": "dadaji",
+          "text": "इंद्रधनुष वाले पहाड़ पर चढ़ो, वहाँ से आसमान सबसे पास है।"
+        }
+      ],
+      "camera": "auto"
+    },
+    {
+      "template": "story",
+      "background": "mountains",
+      "time": "sunset",
+      "characters": [
+        {
+          "who": "miko",
+          "pose": "cheer"
+        },
+        {
+          "who": "tara",
+          "pose": "jump"
+        }
+      ],
+      "narration": "पहाड़ की चोटी पर पहुँचते ही तारा चमका और उड़ने लगा।",
+      "camera": "auto"
+    },
+    {
+      "template": "dialogue",
+      "background": "mountains",
+      "time": "sunset",
+      "lines": [
+        {
+          "who": "tara",
+          "text": "धन्यवाद मिको! तुम मेरे सबसे अच्छे दोस्त हो।",
+          "mood": "happy"
+        },
+        {
+          "who": "miko",
+          "text": "दोस्त हमेशा मदद करते हैं!"
+        }
+      ],
+      "camera": "auto"
+    },
+    {
+      "template": "story",
+      "background": "meadow",
+      "time": "night",
+      "headline": "समाप्त",
+      "characters": [
+        {
+          "who": "miko",
+          "pose": "wave"
+        }
+      ],
+      "text": "सच्चा दोस्त वही है जो मुश्किल में साथ दे।",
+      "narration": "सीख: सच्चा दोस्त वही है जो मुश्किल समय में साथ देता है।",
+      "camera": "dolly-out"
+    }
+  ],
+  "look": "3d"
+}

@@ -101,12 +101,42 @@
     });
   }
 
+  // 3D look: the world module draws scene i and reports where each character's head is on screen;
+  // speech bubbles follow the heads (the camera moves, so fixed bubble positions would drift).
+  let world = null;
+  function place3d(i, heads) {
+    const el = sceneEls[i];
+    const W = stage.offsetWidth, H = stage.offsetHeight;
+    const cs = getComputedStyle(stage);
+    const safeTop = parseFloat(cs.getPropertyValue('--st')) || 0;
+    for (const b of el.querySelectorAll('.bubble')) {
+      const h = heads[b.dataset.who];
+      if (!h) continue;
+      const bw = (parseFloat(b.style.width) || 40) / 100 * W;
+      const half = bw / 2 / W * 100;
+      const left = Math.min(100 - half - 2, Math.max(half + 2, h.x));
+      const tail = Math.min(86, Math.max(14, 50 + ((h.x - left) / (bw / W * 100)) * 100));
+      // Above the head, but never above the top of the frame.
+      const bh = b.offsetHeight || 80;
+      const bottom = Math.min(H - h.y + 24, H - bh - Math.max(24, safeTop));
+      // Rounded so a slow camera move changes the text layer only every few frames (fast capture caches it).
+      b.style.left = (Math.round(left * 2) / 2).toFixed(1) + '%';
+      b.style.bottom = (Math.round(Math.max(20, bottom) / 8) * 8) + 'px';
+      b.style.setProperty('--tail', (Math.round(tail * 2) / 2).toFixed(1) + '%');
+    }
+  }
+
   function seek(ms) {
     const i = sceneAt(ms);
     const sc = TL.scenes[i];
     if (i !== cur) { sceneEls.forEach((el, k) => el.classList.toggle('on', k === i)); cur = i; }
     speech(i, ms);
     const local = Math.max(0, ms - sc.start * 1000);
+    if (world) {
+      const heads = world.seek(i, local);
+      stage.classList.toggle('on3d', !!heads);
+      if (heads) place3d(i, heads);
+    }
     for (const a of sceneEls[i].getAnimations({ subtree: true })) { a.pause(); a.currentTime = local; }
     if (amb) for (const a of amb.getAnimations({ subtree: true })) { a.pause(); a.currentTime = ms; }
     let capObj = null;
@@ -129,6 +159,82 @@
       const s = TL.scenes[k];
       b.style.width = k < i ? '100%' : k > i ? '0%' : Math.min(100, (ms - s.start * 1000) / (s.duration * 10)) + '%';
     });
+  }
+
+  // ---------- fast capture (3D scenes) ----------
+  // A 3D frame is the WebGL canvas plus the HTML text layer (titles, bubbles, captions). The text layer
+  // changes only now and then, so it is captured once as a transparent image (by the renderer, through
+  // a screenshot) and reused; each frame is then composed here and encoded as JPEG without a screenshot.
+  const w3d = document.getElementById('w3d');
+  let overlay = null, overlayKey = null, comp = null, compCtx = null;
+  const round3 = (x) => Math.round(x * 1000) / 1000;
+  function layerKey(i) {
+    if (!w3d || !stage.classList.contains('on3d')) return null;
+    const el = sceneEls[i];
+    const anims = [];
+    for (const a of el.getAnimations({ subtree: true })) {
+      const ct = a.effect && a.effect.getComputedTiming();
+      if (!ct || ct.iterations === Infinity) return null;   // endless CSS animation: no caching
+      const p = ct.progress ?? -1;
+      // Text still animating in: this frame's layer is used once, so a plain screenshot is cheaper.
+      if (p > 0 && p < 1) return null;
+      anims.push(round3(p));
+    }
+    const bubbles = [];
+    for (const b of el.querySelectorAll('.bubble')) {
+      const op = parseFloat(b.style.opacity || '1');
+      if (op > 0.001 && op < 0.999) return null;           // bubble popping in
+      bubbles.push([op > 0.5 ? 1 : 0, b.style.transform, b.style.left, b.style.bottom, b.style.getPropertyValue('--tail')].join('|'));
+    }
+    if (capEl && capEl.style.transform && !/scale\(1(\.0+)?\)/.test(capEl.style.transform)) return null;   // pop caption growing
+    const words = capEl ? [...capEl.querySelectorAll('.w')].map(w => (w.classList.contains('on') ? 2 : w.classList.contains('past') ? 1 : 0)).join('') : '';
+    return JSON.stringify([i, capEl ? capEl.innerHTML : '', capEl ? capEl.style.transform : '', words, bubbles, anims]);
+  }
+  function grab(ms, q) {
+    seek(ms);
+    const key = layerKey(cur);
+    if (key == null) return { mode: 'shot' };
+    if (key !== overlayKey) return { mode: 'overlay', key };
+    return { mode: 'jpeg', data: compose(q) };
+  }
+  function overlayMode(on) {
+    document.documentElement.classList.toggle('ovl', on);
+  }
+  async function setOverlay(b64, key) {
+    const blob = await (await fetch('data:image/png;base64,' + b64)).blob();
+    if (overlay && overlay.close) overlay.close();
+    overlay = await createImageBitmap(blob, { premultiplyAlpha: 'none' });
+    overlayKey = key;
+  }
+  function barRects() {
+    if (!bars.length || getComputedStyle(stage.querySelector('.prog')).display === 'none') return [];
+    const sr = stage.getBoundingClientRect();
+    return bars.map(b => {
+      const r = b.parentElement.getBoundingClientRect();
+      return { x: r.left - sr.left, y: r.top - sr.top, w: r.width * Math.min(1, (parseFloat(b.style.width) || 0) / 100), h: r.height, color: getComputedStyle(b).backgroundColor };
+    });
+  }
+  function compose(q) {
+    // Fastest: draw the text layer inside WebGL and encode the WebGL canvas directly.
+    if (world && world.composite) return world.composite(overlay, barRects(), q);
+    const W = stage.offsetWidth, H = stage.offsetHeight;
+    if (!comp) { comp = document.createElement('canvas'); comp.width = W; comp.height = H; compCtx = comp.getContext('2d'); }
+    compCtx.drawImage(w3d, 0, 0, W, H);
+    if (overlay) compCtx.drawImage(overlay, 0, 0);
+    // Progress bar fills change every frame, so they are drawn here rather than in the cached layer.
+    if (bars.length && getComputedStyle(stage.querySelector('.prog')).display !== 'none') {
+      const sr = stage.getBoundingClientRect();
+      for (const b of bars) {
+        const pct = parseFloat(b.style.width) || 0;
+        if (pct <= 0) continue;
+        const r = b.parentElement.getBoundingClientRect();
+        compCtx.fillStyle = getComputedStyle(b).backgroundColor;
+        compCtx.beginPath();
+        compCtx.roundRect(r.left - sr.left, r.top - sr.top, r.width * Math.min(1, pct / 100), r.height, Math.min(9, r.height / 2));
+        compCtx.fill();
+      }
+    }
+    return comp.toDataURL('image/jpeg', q).slice(23);
   }
 
   // ---------- QA ----------
@@ -202,6 +308,25 @@
         }
       }
       for (const img of scene.querySelectorAll('img')) if (!img.naturalWidth) add('missing-image', 'image', `image did not load: ${img.getAttribute('src')}`, { severity: 'error' });
+      // 3D camera checks: the speaker must be visible while speaking; shot sizes should vary.
+      const shots = world && world.plan ? world.plan(i) : null;
+      if (shots) {
+        const W = stage.offsetWidth, H = stage.offsetHeight;
+        for (const p of (sc.parts || []).filter(x => x.kind === 'line')) {
+          const mid = ((p.start + p.end) / 2 - sc.start) * 1000;
+          const heads = world.seek(i, mid);
+          const h = heads && heads[p.who];
+          const shot = shots.find(x => mid / 1000 < x.end) || shots.at(-1);
+          if (shot && shot.reaction) continue;
+          if (!h || !h.onScreen || h.x < 2 || h.x > 98 || h.y < H * 0.02 || h.y > H * 0.98) add('speaker-off-screen', 'character', `"${p.who}" speaks line ${p.line + 1} but is off screen in the ${shot ? shot.type : ''} shot`, { severity: 'warning', fix: 'set the line\'s "shot" to two-shot or medium, or the scene "camera" to wide' });
+        }
+        const SIZE = { 'extreme-wide': 0, establish: 0, wide: 1, full: 2, 'two-shot': 3, medium: 3, follow: 3, 'over-shoulder': 4, 'medium-close': 4, close: 5, 'extreme-close': 6 };
+        for (let k = 2; k < shots.length; k++) {
+          const a = SIZE[shots[k - 2].type], b = SIZE[shots[k - 1].type], c = SIZE[shots[k].type];
+          if (a != null && a === b && b === c) { add('same-shot-size', 'camera', `three ${shots[k].type} shots in a row`, { severity: 'warning', fix: 'vary the "shot" of one of these lines' }); break; }
+        }
+        seek(Math.min(sc.start + sc.duration * 0.92, sc.start + 3.6) * 1000);
+      }
       for (const f of scene.querySelectorAll('.frame')) {
         const r = f.getBoundingClientRect();
         if (r.width < sr.width * 0.35 && r.height < sr.height * 0.35) add('tiny-image', 'image', `the screenshot is shown small (${Math.round(r.width)}×${Math.round(r.height)} px)`, { severity: 'warning' });
@@ -228,7 +353,8 @@
     document.body.style.width = stage.offsetWidth * s + 'px';
   }
 
-  const ready = layout().then(() => {
+  const ready = layout().then(async () => {
+    if (window.__worldReady) world = await window.__worldReady;
     seek(0);
     if (!rendering) {
       fitWindow(); addEventListener('resize', fitWindow);
@@ -238,5 +364,5 @@
     return true;
   });
 
-  window.__video = { timeline: TL, duration: TL.duration, ready, seek, play, pause, inspect };
+  window.__video = { timeline: TL, duration: TL.duration, ready, seek, play, pause, inspect, grab, overlayMode, setOverlay, compose };
 })();

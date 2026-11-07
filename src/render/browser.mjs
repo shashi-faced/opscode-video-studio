@@ -10,7 +10,7 @@ export class UserError extends Error {
 const BASE_ARGS = ['--force-color-profile=srgb', '--hide-scrollbars', '--font-render-hinting=none', '--allow-file-access-from-files'];
 // Drawing frames on the graphics card (Vulkan) instead of the CPU: about 35% faster film renders
 // on an Intel laptop, because the CPU is then free for encoding.
-const GPU_ARGS = ['--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--use-angle=vulkan', '--enable-features=Vulkan'];
+const GPU_ARGS = ['--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--use-angle=vulkan', '--enable-features=Vulkan', '--disable-vulkan-surface'];
 const extraArgs = () => String(process.env.OPSCODE_VIDEO_CHROME_ARGS || '').split(' ').filter(Boolean);
 
 /** gpu: true uses the graphics card when Chrome can; false (default) draws on the CPU as before. */
@@ -52,25 +52,49 @@ export function gpuWorks() {
 }
 
 /** shared: an already running browser (film workers reuse one per worker); close() then only closes the page. */
-export async function openBuild(htmlFile, stage, { shared } = {}) {
-  const browser = shared || await launchBrowser();
+/** lowres: draw 3D scenes at 2/3 resolution (software drawing with no GPU); the HTML text stays sharp. */
+export async function openBuild(htmlFile, stage, { shared, gpu = false, lowres = false } = {}) {
+  const browser = shared || await launchBrowser({ gpu });
   const page = await browser.newPage({ viewport: { width: stage.width, height: stage.height }, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  await page.goto(pathToFileURL(htmlFile).href + '?render=1');
+  await page.goto(pathToFileURL(htmlFile).href + '?render=1' + (lowres ? '&lowres=1' : ''));
   await page.waitForFunction(() => window.__video && window.__video.ready, null, { timeout: 30000 });
   await page.evaluate(() => window.__video.ready);
   if (errors.length) throw new UserError(`The video page failed to load: ${errors[0]}`, 'this is an engine bug; report it with the storyboard');
   const cdp = await page.context().newCDPSession(page);
+  // Transparent page background, so the text layer of a 3D frame can be captured with alpha.
+  await cdp.send('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
+  const stats = { composed: 0, overlays: 0, screenshots: 0 };
+  const shot = async (format, quality) => {
+    const { data } = await cdp.send('Page.captureScreenshot', { format, quality: format === 'jpeg' ? quality : undefined, captureBeyondViewport: false, optimizeForSpeed: true });
+    return Buffer.from(data, 'base64');
+  };
 
   return {
     page,
     errors,
     async seek(ms) { await page.evaluate(t => window.__video.seek(t), ms); },
-    async frame(format = 'jpeg', quality = 92) {
-      const { data } = await cdp.send('Page.captureScreenshot', { format, quality: format === 'jpeg' ? quality : undefined, captureBeyondViewport: false, optimizeForSpeed: true });
-      return Buffer.from(data, 'base64');
+    async frame(format = 'jpeg', quality = 92) { return shot(format, quality); },
+    /**
+     * Seek to ms and return the frame as JPEG. 3D frames are composed inside the page (WebGL canvas +
+     * cached text layer), about 3x faster than a screenshot; other frames fall back to a screenshot.
+     */
+    async grab(ms, quality = 92) {
+      let r = await page.evaluate(([t, q]) => window.__video.grab(t, q), [ms, quality / 100]);
+      if (r.mode === 'overlay') {
+        await page.evaluate(() => window.__video.overlayMode(true));
+        let png;
+        try { png = await shot('png'); } finally { await page.evaluate(() => window.__video.overlayMode(false)); }
+        await page.evaluate(([b64, key]) => window.__video.setOverlay(b64, key), [png.toString('base64'), r.key]);
+        stats.overlays++;
+        r = { mode: 'jpeg', data: await page.evaluate(q => window.__video.compose(q), quality / 100) };
+      }
+      if (r.mode === 'jpeg') { stats.composed++; return Buffer.from(r.data, 'base64'); }
+      stats.screenshots++;
+      return shot('jpeg', quality);
     },
+    stats,
     async inspect() { return page.evaluate(() => window.__video.inspect()); },
     async close() { if (shared) await page.close(); else await browser.close(); },
   };

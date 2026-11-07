@@ -1,0 +1,20 @@
+{
+  "_about": "World-pack props (Kenney, CC0) each 3D location uses when the pack is installed; world3d.js places them. Props named in a character's \"near\" are added too.",
+  "locations": {
+    "meadow": ["tree", "tree-large", "rock", "rock-grass", "grass", "signpost"],
+    "forest": ["tree", "tree-large", "rock", "grass", "tent", "campfire"],
+    "mountains": ["tree", "tree-large", "rock", "rock-formation"],
+    "beach": ["ship", "rock-formation", "rock", "barrel", "chest"],
+    "village": ["house", "house-2", "fence", "barrel", "tree", "grass", "signpost"],
+    "city": ["small-building", "small-building-2", "low-building", "large-building", "skyscraper"],
+    "sky": [],
+    "space": ["spacecraft", "satellite", "speeder", "rock"],
+    "underwater": ["shipwreck", "rock", "rock-formation", "chest"],
+    "home": ["sofa", "coffee-table", "rug-round", "plant-pot", "lamp-floor", "tv", "side-table", "bookcase", "books"],
+    "bedroom": ["bed", "side-table", "lamp-floor", "books", "box", "rug-round", "plant-pot"],
+    "classroom": ["desk", "chair", "bookcase", "plant-pot", "books"],
+    "office": ["desk", "desk-chair", "monitor", "laptop", "plant-pot", "bookcase"],
+    "festival": ["table", "cake", "pizza", "watermelon", "cupcake", "pumpkin", "barrel"]
+  },
+  "near": ["sofa", "tree", "tree-large", "house", "tent", "campfire", "desk", "bed", "table", "bench", "fridge", "stove", "bookcase", "signpost", "barrel", "chest", "plant-pot", "tv", "rock", "ship", "fence", "cake", "lamp-floor"]
+}

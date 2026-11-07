@@ -3,3 +3,4 @@ examples/out/
 test/out/
 out/
 *.tgz
+eval/3d/runs/

@@ -99,8 +99,23 @@ function storyScene(sc, ctx) {
   for (const l of lines) if (!listed.some(c => String(c.who).toLowerCase() === String(l.who).toLowerCase())) listed.push({ who: l.who });
   const chars = placeCharacters(listed, ctx);
   const { ground, chh } = ctx.layout;
+  // 3D look: the world module draws the place and the characters; this scene keeps its HTML text and bubbles.
+  const is3d = ctx.is3d?.(sc);
+  if (is3d) {
+    ctx.world[ctx.index] = {
+      background: sc.background || 'meadow', time: sc.time || 'day', camera: sc.camera || 'auto', template: sc.template, weather: sc.weather || 'none',
+      characters: chars.map((c, k) => {
+        const firstLine = lines.find(l => String(l.who).toLowerCase() === c.who.id);
+        return { id: c.who.id, kind: c.who.kind, name: c.who.name, color: c.who.color || null, hair: c.who.hair || null, skin: c.who.skin || null,
+          modelPref: c.who.design ? 'built-in' : c.who.model || 'auto', design: c.who.design || null, turn: c.turn ?? null, near: c.near || null, x: c.x, s: c.s, facing: c.facing, pose: c.pose || 'idle', mood: c.mood || firstLine?.mood || 'happy', enter: c.enter || 'none', delay: +(0.2 + k * 0.3).toFixed(2) };
+      }),
+      lines: lines.map(l => ({ who: String(l.who).toLowerCase(), mood: l.mood || null, shot: l.shot || null, q: /[?？]\s*$/.test(String(l.text || '')) })),
+      // Film shots tell us the previous shot's place ("background|time"), so the director knows when to establish.
+      prevPlace: sc._prevPlace ?? null,
+    };
+  }
 
-  const charHtml = chars.map((c, k) => {
+  const charHtml = is3d ? '' : chars.map((c, k) => {
     const firstLine = lines.find(l => String(l.who).toLowerCase() === c.who.id);
     const mood = c.mood || firstLine?.mood || 'happy';
     const enter = c.enter && c.enter !== 'none' ? `enter-${c.enter}` : '';
@@ -116,7 +131,7 @@ function storyScene(sc, ctx) {
     const tail = Math.min(86, Math.max(14, 50 + ((c.x - left) / bw) * 100));
     const top = KIND_INFO[c.who.kind]?.plan === 'float' ? 0.72 : 0.86;
     const bottom = Math.round(ground + chh * c.s * top + 18);
-    return `<div class="bubble" data-line="${k}" style="left:${left}%;width:${bw}%;bottom:${bottom}px;--tail:${tail.toFixed(1)}%"><b class="bname">${esc(c.who.name)}</b>${fit('div', 'btext', markup(l.text), sz('bubble', ctx), 4, 1.25)}</div>`;
+    return `<div class="bubble" data-line="${k}" data-who="${esc(c.who.id)}" style="left:${left}%;width:${bw}%;bottom:${bottom}px;--tail:${tail.toFixed(1)}%"><b class="bname">${esc(c.who.name)}</b>${fit('div', 'btext', markup(l.text), sz('bubble', ctx), 4, 1.25)}</div>`;
   }).join('');
 
   const text = sc.text
@@ -124,7 +139,7 @@ function storyScene(sc, ctx) {
   // With a title, the story text flows right under it instead of sitting at a fixed height.
   const title = sc.headline
     ? `<div class="storytitle">${sc.kicker ? fit('div', 'kicker a-up', esc(sc.kicker), sz('kicker', ctx), 1, 1.2, 0.1) : ''}${fit('h1', 'headline a-pop', markup(sc.headline), sz('stitle', ctx), 2, 1.04, 0.25)}${text}</div>` : '';
-  return `<div class="in t-story no-scale">${backgroundHtml(sc.background || 'meadow', sc.time || 'day')}${charHtml}${bubbles}${title}${sc.headline ? '' : text}</div>`;
+  return `<div class="in t-story no-scale${is3d ? ' w3d' : ''}">${is3d ? '' : backgroundHtml(sc.background || 'meadow', sc.time || 'day')}${charHtml}${bubbles}${title}${sc.headline ? '' : text}</div>`;
 }
 
 export const TEMPLATE_HTML = {
@@ -203,6 +218,16 @@ export const TEMPLATE_CSS = `
 .scene.tr-slide .in{animation:sc-slide .6s cubic-bezier(.2,.8,.2,1) both}
 .scene.tr-zoom .in{animation:sc-zoom .7s cubic-bezier(.2,.8,.2,1) both}
 .scene.tr-cut .in{animation:none}
+#w3d{position:absolute;left:0;top:0;width:100%;height:100%;display:none}
+#stage.on3d #w3d{display:block}
+#stage.on3d .amb{visibility:hidden}
+#stage.cine::before,#stage.cine::after{content:'';position:absolute;left:0;right:0;height:138px;background:#000;z-index:8;pointer-events:none}
+#stage.cine::before{top:0}
+#stage.cine::after{bottom:0}
+#stage.cine .cap{z-index:9;bottom:34px !important}
+#stage.cine .brand{z-index:9}
+html.ovl,html.ovl body,html.ovl #stage{background:transparent !important}
+html.ovl #w3d,html.ovl .amb,html.ovl .prog i{visibility:hidden !important}
 
 .txt{display:flex;flex-direction:column;gap:calc(var(--u)*1.4);min-width:0;min-height:0;position:relative}
 .fit{margin:0;overflow-wrap:anywhere}

@@ -65,5 +65,21 @@ export async function doctor({ install = false, checkNetwork = true } = {}) {
     item('voice (internet)', net, net ? 'Edge neural voices reachable' : 'not reachable', net ? undefined : 'videos still render; voice is skipped and captions remain');
   }
   report.home = HOME_DIR;
+  // Graphics card for 3D (optional: without it 3D still renders on the CPU, slower and at 2/3 resolution).
+  if (chrome) {
+    try {
+      const { gpuWorks } = await import('../render/browser.mjs');
+      const g = await gpuWorks();
+      report.items.push({ name: 'GPU for 3D (optional)', ok: true, detail: g ? 'graphics card works in Chrome (fast 3D)' : 'not available; 3D draws on the CPU, slower and at 2/3 resolution', fix: g ? undefined : 'update the graphics drivers (Linux: Mesa with Vulkan, e.g. sudo apt install mesa-vulkan-drivers)' });
+    } catch { /* GPU probe failed: nothing to report */ }
+  }
+  // Optional 3D character pack (never required: 3D characters are built in code without it).
+  try {
+    const { assetStatus } = await import('../assets/assets.mjs');
+    for (const [set, label] of [['3d-starter', '3D character pack'], ['3d-world', '3D world pack']]) {
+      const a = assetStatus(set);
+      report.items.push({ name: `${label} (optional)`, ok: true, detail: a.installed ? `${a.installed}/${a.total} installed (CC0)` : 'not installed; 3D uses models made in code', fix: a.installed < a.total ? `opscode-video assets install ${set} (${a.sizeMB} MB)` : undefined });
+    }
+  } catch { /* manifest missing: nothing to report */ }
   return report;
 }

@@ -127,11 +127,14 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
     const parts = speechParts(sc);
     if (!parts.length) { out.push(null); continue; }
     const clips = [];
+    const partWords = [];
     let file = null, words = null;
     for (const p of parts) {
       const v = p.kind === 'line' ? voices.get(p.who) : { voice, rate, pitch: null };
-      const clip = await speakCached(v.voice, v.rate, v.pitch, speakable(p.text), needWords && p.kind === 'narration');
+      // Narration timings drive captions; dialogue-line timings drive the speaker's mouth (lip-sync).
+      const clip = await speakCached(v.voice, v.rate, v.pitch, speakable(p.text), p.kind === 'line' || needWords);
       clips.push(clip.samples);
+      partWords.push(clip.words);
       if (p.kind === 'narration') words = clip.words;
       file = file || clip.file;
       onProgress({ stage: 'voice', done: ++done, total });
@@ -140,7 +143,7 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
     const samples = new Float32Array(len);
     let o = 0;
     clips.forEach((c, j) => { samples.set(c, o); o += c.length + (j < clips.length - 1 ? gap.length : 0); });
-    out.push({ samples, seconds: +(samples.length / SR).toFixed(3), parts: clips.map(c => +(c.length / SR).toFixed(3)), file, words });
+    out.push({ samples, seconds: +(samples.length / SR).toFixed(3), parts: clips.map(c => +(c.length / SR).toFixed(3)), file, words, partWords });
   }
   return out;
 }

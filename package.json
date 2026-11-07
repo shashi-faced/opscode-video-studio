@@ -1,6 +1,6 @@
 {
   "name": "@opscode/video-studio",
-  "version": "0.6.0",
+  "version": "0.12.0",
   "description": "Opscode Video Studio agent: storyboard JSON to animated MP4 with voiceover, music and captions.",
   "type": "module",
   "bin": {
@@ -27,7 +27,8 @@
   },
   "dependencies": {
     "msedge-tts": "^2.1.1",
-    "playwright-core": "^1.48.0"
+    "playwright-core": "^1.48.0",
+    "three": "^0.187.0"
   },
   "license": "MIT",
   "author": "Opscode",

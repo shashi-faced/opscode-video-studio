@@ -30,10 +30,12 @@ const HELP = `opscode-video — storyboard JSON to animated MP4
   validate <storyboard.json>    validate, with fix hints
   check <storyboard.json>       layout QA + contact sheet (no audio)
   preview <storyboard.json>     build the HTML preview page
-  render <storyboard.json> [--out file.mp4] [--fps 30] [--no-voice]
+  render <storyboard.json> [--out file.mp4] [--fps 30] [--workers 4] [--no-voice]
   film-render <film.json> [--workers 6] [--only id1,id2] [--force] [--no-voice] [--out file.mp4]
                                 long video from sequences of shots; parallel, cached, resumable
   film-status <film.json>       shots done / failed / not rendered
+  assets [list|install|remove] [set]  3D packs: characters (5.8 MB) and world scenery (2.2 MB), CC0, downloaded on request
+  character <sheet|save|list> [storyboard.json] [id]  designed 3D characters: turnaround sheet, save to library
   capture <url> <out.png> [--width 1440 --height 900 --crop x,y,w,h]
   tool <name> '<json params>'   generic bridge used by the Opscode app
   tools                         list tool definitions (JSON)
@@ -80,7 +82,7 @@ async function main() {
       }
       case 'render': {
         const { render } = await import('../src/render/render.mjs');
-        const r = await render(pos[0], { out: flags.out, fps: flags.fps ? +flags.fps : undefined, voice: flags['no-voice'] ? 'skip' : 'auto', onProgress: progress });
+        const r = await render(pos[0], { out: flags.out, fps: flags.fps ? +flags.fps : undefined, workers: flags.workers ? +flags.workers : undefined, voice: flags['no-voice'] ? 'skip' : 'auto', onProgress: progress });
         return done(r);
       }
       case 'film-render': {
@@ -92,6 +94,16 @@ async function main() {
         const { filmStatus } = await import('../src/film/renderFilm.mjs');
         const r = filmStatus(pos[0]);
         return done(r, r.ok ? 0 : 2);
+      }
+      case 'assets': {
+        const r = await runTool('video_assets', { action: pos[0] || 'list', set: pos[1] }, { onProgress: progress });
+        if (!quiet) process.stderr.write(r.text + '\n');
+        return done({ ok: r.ok, sets: r.data }, r.ok ? 0 : 1);
+      }
+      case 'character': {
+        const r = await runTool('video_character', { action: pos[0] || 'list', storyboard: pos[1], id: pos[2], out: flags.out });
+        if (!quiet) process.stderr.write(r.text + '\n');
+        return done({ ok: r.ok, text: r.text, data: r.data }, r.ok ? 0 : 1);
       }
       case 'capture': {
         const r = await runTool('video_capture', { url: pos[0], out: pos[1], width: flags.width, height: flags.height, crop: flags.crop, waitMs: flags.wait });

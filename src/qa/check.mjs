@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { openBuild } from '../render/browser.mjs';
+import { openBuild, gpuWorks } from '../render/browser.mjs';
 import { findFfmpeg } from '../deps/locate.mjs';
 import { PLATFORMS } from '../schema/platforms.mjs';
 
@@ -29,13 +29,15 @@ function fixHint(issue, scene) {
       ? `shorten scenes[${issue.scene}].${field} so it fits in the middle of the frame`
       : `shorten scenes[${issue.scene}].${field}; long lines run under the like/comment buttons`;
     case 'missing-image': return `check the image path in scenes[${issue.scene}]`;
+    case 'speaker-off-screen': return `in scenes[${issue.scene}] set that line's "shot" to "two-shot" or "medium", or the scene "camera" to "wide"`;
+    case 'same-shot-size': return `in scenes[${issue.scene}] give one of those lines a different "shot" (close, over-shoulder, two-shot)`;
     case 'tiny-image': return `crop the screenshot in scenes[${issue.scene}] to the important panel so it shows larger`;
     default: return '';
   }
 }
 
 export async function runCheck({ build, storyboard, outDir }) {
-  const sess = await openBuild(build.file, build.stage);
+  const sess = await openBuild(build.file, build.stage, { gpu: build.has3d ? await gpuWorks() : false });
   try {
     const raw = await sess.inspect();
     const issues = raw.map(i => ({ ...i, severity: i.severity || 'warning', fix: fixHint(i, storyboard.scenes[i.scene]) }));

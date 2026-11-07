@@ -1,3 +1,4 @@
+import { visemeTrack } from './audio/visemes.mjs';
 // Scene timing + caption chunks. Everything downstream (compiler, music, mixer)
 // reads this one object so voice, picture and music always agree.
 
@@ -155,7 +156,7 @@ export function speechParts(sc) {
  * @param voiceLengths array (per scene) of measured voice seconds, or null where none
  * @param partLengths  array (per scene) of measured seconds per speech part, or null
  */
-export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], narrationWords = []) {
+export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], narrationWords = [], partWords = []) {
   const capStyle = storyboard.captions && typeof storyboard.captions === 'object' ? storyboard.captions.style || 'line' : 'line';
   const scenes = [];
   let t = 0;
@@ -176,7 +177,14 @@ export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], n
     const timed = [];
     let off = voiceStart ?? start;
     parts.forEach((p, j) => {
-      timed.push({ kind: p.kind, who: p.who, line: p.line, start: +off.toFixed(3), end: +(off + partSecs[j]).toFixed(3) });
+      const tp = { kind: p.kind, who: p.who, line: p.line, start: +off.toFixed(3), end: +(off + partSecs[j]).toFixed(3) };
+      // Lip-sync: mouth shapes for a character's line, from its word timings (or spread evenly with no voice).
+      if (p.kind === 'line') {
+        const tokens = captionTokens(p.text);
+        const rel = alignWords(tokens, partWords[i]?.[j] || null, partSecs[j]);
+        tp.visemes = visemeTrack(tokens, rel.map(([a, b]) => [off + a, off + b]), off + partSecs[j]);
+      }
+      timed.push(tp);
       off += partSecs[j] + PART_GAP;
     });
     const captions = [];

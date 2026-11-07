@@ -52,6 +52,37 @@ Set `"platform"` to where the video will be posted. It sets the frame size, keep
 
 `captions` is `true`, `false`, or `{ "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top" }`. Captions are timed to the spoken words using the voice's word timings: `pop` shows 1–3 big words at a time (reels), `karaoke` lights up the word being spoken. Examples: [insta-reel.json](examples/insta-reel.json), [youtube-ad.json](examples/youtube-ad.json).
 
+## 3D look
+
+Add `"look": "3d"` to a story to draw its story and dialogue scenes as a 3D cartoon:
+- **Characters:** cel-shaded with ink outlines, built in code for all 21 kinds, with every pose and mood.
+- **Worlds:** all 14 places in day, sunset and night.
+- **Camera:** the camera directs itself with film rules:
+  - an establishing shot when the place changes;
+  - a two-shot to open a conversation;
+  - over-the-shoulder shots and close-ups on whoever speaks;
+  - reaction shots of the listener on strong feelings;
+  - never the same shot size three times running.
+
+  To override it, set `"camera"` per scene (`wide`, `medium`, `close`, `over-shoulder`, `dolly-in`, `orbit`, `crane-up`, …) or `"shot"` per line. `"cinematic": true` adds letterbox bars, subtitles in the bar, and a gentle hand-held camera. Example: [cinematic-3d.json](examples/cinematic-3d.json).
+- **Worlds:** with the optional **3D world pack** (55 CC0 Kenney models, 2.2 MB: `opscode-video assets install 3d-world`), places get real furniture, trees, houses, city buildings, a pirate ship, spacecraft and food tables.
+  - Scenes can add `"weather"`: rain, snow, leaves, fireflies or sparkles.
+  - A character can stand `"near"` a prop (tent, sofa, desk, bed, campfire, house…).
+  - `"scenery": "built-in"` keeps the places made in code.
+- **Any character:** a cast member can have a `"design"` instead of a fixed kind: a body plan (biped, animal, quadruped, bird, fish, snake, blob, robot) plus parts (ears, eyes, snout, horns, hair, tails, wings, shell, fins, spikes, mane…), an outfit and accessories (crown, wizard hat, flute, umbrella…). This covers peacock kings, crocodiles, dragons, ghosts, snowmen and aliens.
+  - `opscode-video character sheet <storyboard> <id>` draws a turnaround sheet (front, 3/4, side, back, three moods, walk) to check a design.
+  - `character save <storyboard> <id>` keeps it in the character library, and any storyboard can then use `"design": "library:<id>"`.
+  - 20 ready-made designs ship with it (peacock king, crocodile, dragon, tortoise, monkey, ghost, astronaut, alien, wizard…): `"design": "preset:dragon"`.
+- **Speech:** characters **lip-sync** their lines in English and Hindi (mouth shapes worked out from the text and the voice's word timings), look at whoever is talking, and nod. Bubbles follow their heads; voice and captions work as before. Example: [lipsync-en-3d.json](examples/lipsync-en-3d.json).
+- **Assets:** three.js (MIT) is bundled, so nothing has to be downloaded. An optional **3D character pack** (11 rigged, animated CC0 models by Quaternius, 5.8 MB) installs with `opscode-video assets install`, or the `video_assets` tool. Only links and checksums ship with Video Studio. With the pack, the panda, robot, fox, woman and dog use these models by default; set a cast member's `"model"` to `pack` or `built-in` to choose.
+- **Speed:** on an Intel laptop GPU the 52 s example ([kids-story-3d.json](examples/kids-story-3d.json)) renders in **53 s** with voice. 3D frames are composed inside the page instead of screenshotted, and 4 GPU workers each render a chunk (`--workers N`). With no GPU, 3D draws at 2/3 resolution while the text stays sharp.
+
+- **In the Opscode app:** pick **Look → 3D cartoon** in the Video Studio setup panel, then choose 3D characters, your saved characters and places from picture galleries. The agent reads a short 3D guide (`video_templates` with `look: "3d"`). Render results report the 3D speed and whether the GPU was used; `doctor` checks the GPU.
+- **Gallery pictures** for the app: `node scripts/gallery-3d.mjs <dir>` (41 characters, 14 places, about 7 s).
+- **Eval:** `eval/3d/` has 10 prompts and a harness that scores a model's replies: validation rounds, preview issues, critic score, render speed, lip-sync and frame determinism (`node eval/3d/run.mjs ask|score|report`).
+
+The plan for richer assets, lip-sync and camera work is in [plans/12-3d](plans/12-3d/00-overview.md).
+
 ## Long videos (films)
 
 For anything longer than about 2 minutes, write a **film** instead of a storyboard: the same top fields plus `sequences`, each a list of short **shots** (a shot is a normal scene of 3–8 s, with an optional `id`).
@@ -85,6 +116,8 @@ A plain storyboard also works with `film-render` (one sequence, one shot per sce
 | `render <file> [--out x.mp4] [--fps 30] [--no-voice]` | Full video |
 | `film-render <film.json> [--workers 6] [--only id1,id2] [--force] [--no-voice]` | Long video from sequences of shots: parallel, cached, resumable |
 | `film-status <film.json>` | Which shots are done, failed or not rendered yet |
+| `assets [list\|install\|remove] [3d-starter\|3d-world]` | Optional 3D character and world packs |
+| `character [sheet\|save\|list] <storyboard> <id>` | Turnaround sheet of a designed 3D character; character library |
 | `capture <url> <out.png> [--crop x,y,w,h]` | Screenshot a page or local app |
 | `tool <name> --b64 <json>` | Bridge used by the Opscode app |
 | `agent-manifest` | Manifest + tool definitions read by the app on install |

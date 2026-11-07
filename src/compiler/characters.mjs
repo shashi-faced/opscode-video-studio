@@ -328,6 +328,8 @@ export const CHARACTER_CSS = `
 .pose-point .ch-arm-r{transform:rotate(-96deg)}
 .pose-think .ch-arm-r{transform:rotate(124deg)}
 .pose-think .ch-head{transform:rotate(-7deg)}
+.pose-talk .ch-arm-l{animation:ch-wave .9s ease-in-out infinite alternate}
+.pose-sit .ch-all{transform:translateY(9%)}
 .pose-walk .ch-leg-l,.enter-walk-in .ch-leg-l{animation:ch-step .42s ease-in-out infinite alternate}
 .pose-walk .ch-leg-r,.enter-walk-in .ch-leg-r{animation:ch-step .42s ease-in-out infinite alternate-reverse}
 .pose-walk .ch-arm-l{animation:ch-swing-l .42s ease-in-out infinite alternate-reverse}

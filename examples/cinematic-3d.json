@@ -1,0 +1,89 @@
+{
+ "title": "Pip and Momo Cinematic",
+ "type": "story",
+ "look": "3d",
+ "voice": {
+  "voice": "en-US-AvaMultilingualNeural"
+ },
+ "cast": [
+  {
+   "id": "pip",
+   "kind": "fox",
+   "name": "Pip"
+  },
+  {
+   "id": "momo",
+   "kind": "panda",
+   "name": "Momo"
+  }
+ ],
+ "scenes": [
+  {
+   "template": "story",
+   "background": "village",
+   "time": "day",
+   "headline": "Pip and Momo",
+   "characters": [
+    {
+     "who": "pip",
+     "pose": "wave"
+    },
+    {
+     "who": "momo",
+     "pose": "idle"
+    }
+   ],
+   "narration": "One sunny morning, Pip the fox met his best friend Momo."
+  },
+  {
+   "template": "dialogue",
+   "background": "village",
+   "time": "day",
+   "lines": [
+    {
+     "who": "pip",
+     "text": "Good morning, Momo! Do you want to play football?",
+     "mood": "happy"
+    },
+    {
+     "who": "momo",
+     "text": "Maybe later. I am making mango pie for my mummy, and I burnt the first one.",
+     "mood": "sad"
+    },
+    {
+     "who": "pip",
+     "text": "Mango pie? Wow! Can I help you?",
+     "mood": "surprised"
+    },
+    {
+     "who": "momo",
+     "text": "Of course, my friend. Bring the big bowl, please.",
+     "mood": "happy"
+    },
+    {
+     "who": "pip",
+     "text": "Then we will make a new one together. Let us go!",
+     "mood": "happy"
+    }
+   ]
+  },
+  {
+   "template": "story",
+   "background": "home",
+   "time": "sunset",
+   "characters": [
+    {
+     "who": "pip",
+     "pose": "cheer"
+    },
+    {
+     "who": "momo",
+     "pose": "dance"
+    }
+   ],
+   "narration": "Together they made the best pie in the whole village.",
+   "camera": "orbit"
+  }
+ ],
+ "cinematic": true
+}

@@ -1,21 +1,42 @@
 // Normalise + validate a storyboard. Messages are written for an LLM:
 // every error has a JSON path, what is wrong, and a concrete fix.
+import { presetDesign, PRESETS } from '../characters/presets.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TEMPLATES, COMMON_FIELDS, TOP_FIELDS, DEFAULTS, FORMATS, CHARACTER_KINDS, POSES, CHARACTER_MOODS, POSITIONS, ENTRANCES, SIZES, BACKGROUNDS, TIMES, VIDEO_TYPES } from './spec.mjs';
 import { TYPE_RECIPES, TYPE_ALIASES } from './types.mjs';
 import { PLATFORMS, PLATFORM_IDS, resolvePlatform } from './platforms.mjs';
-import { CAPTION_STYLES, CAPTION_POSITIONS } from './spec.mjs';
+import { CAPTION_STYLES, CAPTION_POSITIONS, LOOKS, CAMERAS, LINE_SHOTS, DESIGN, NEAR_PROPS, WEATHER } from './spec.mjs';
+import { loadLibraryCharacter } from '../characters/library.mjs';
 import { KIND_ALIASES } from '../compiler/characters.mjs';
 import { BACKGROUND_ALIASES, TIME_ALIASES } from '../compiler/backgrounds.mjs';
 
 const POSE_ALIASES = { standing: 'idle', stand: 'idle', still: 'idle', waving: 'wave', hello: 'wave', walking: 'walk', running: 'walk', run: 'walk', jumping: 'jump', hop: 'jump', hopping: 'jump',
-  cheering: 'cheer', celebrate: 'cheer', celebrating: 'cheer', happy: 'cheer', pointing: 'point', thinking: 'think', wondering: 'think', dancing: 'dance', talking: 'idle', talk: 'idle', sitting: 'idle', sleeping: 'idle', flying: 'idle', crying: 'idle' };
+  cheering: 'cheer', celebrate: 'cheer', celebrating: 'cheer', happy: 'cheer', pointing: 'point', thinking: 'think', wondering: 'think', dancing: 'dance', talking: 'talk', speaking: 'talk', sitting: 'sit', seated: 'sit', sleeping: 'idle', flying: 'idle', crying: 'idle' };
+const LOOK_ALIASES = { '3d': '3d', 'three-d': '3d', 'three d': '3d', threed: '3d', '3-d': '3d', cgi: '3d', pixar: '3d', 'pixar style': '3d', 'pixar-style': '3d', '2d': '2d', 'two-d': '2d', cartoon: '2d', flat: '2d', illustrated: '2d' };
+const CAMERA_ALIASES = { ots: 'over-shoulder', 'over-the-shoulder': 'over-shoulder', 'over the shoulder': 'over-shoulder', mcu: 'medium-close', 'medium-close-up': 'medium-close', ecu: 'extreme-close', 'extreme-close-up': 'extreme-close', 'big-close-up': 'extreme-close', ews: 'extreme-wide', 'aerial': 'extreme-wide', 'full-shot': 'full', 'full body': 'full', tracking: 'follow', track: 'follow', 'crane down': 'crane-down', reaction: 'close', 'close-up': 'close', 'close up': 'close', closeup: 'close', 'zoom-in': 'dolly-in', 'zoom in': 'dolly-in', 'push-in': 'dolly-in', 'zoom-out': 'dolly-out', 'zoom out': 'dolly-out', 'pull-out': 'dolly-out', '360': 'orbit', 'orbit-around': 'orbit', 'two shot': 'two-shot', twoshot: 'two-shot', 'long-shot': 'wide', 'long shot': 'wide', establishing: 'wide', 'mid-shot': 'medium', 'mid shot': 'medium', pan: 'pan-right', crane: 'crane-up', default: 'auto' };
 const MOOD_ALIASES = { excited: 'happy', joyful: 'happy', smiling: 'happy', glad: 'happy', cheerful: 'happy', proud: 'happy', curious: 'surprised', shocked: 'surprised', amazed: 'surprised', wow: 'surprised',
   scared: 'worried', afraid: 'worried', nervous: 'worried', confused: 'worried', crying: 'sad', upset: 'sad', unhappy: 'sad', lonely: 'sad', mad: 'angry', furious: 'angry', tired: 'sleepy', sleeping: 'sleepy', asleep: 'sleepy', neutral: 'happy', calm: 'happy' };
 const POSITION_ALIASES = { middle: 'center', centre: 'center', mid: 'center', 'left-side': 'left', 'right-side': 'right', 'far left': 'far-left', 'far right': 'far-right', 'center-left': 'left', 'center-right': 'right' };
 const ENTER_ALIASES = { walk: 'walk-in', 'walks-in': 'walk-in', walkin: 'walk-in', appear: 'pop', 'pop-in': 'pop', fly: 'fly-in', 'falls-in': 'fly-in', fall: 'fly-in', 'fade-in': 'fade' };
 const key = (v) => String(v ?? '').trim().toLowerCase().replace(/[\s_]+/g, '-');
+// Words models invent for poses, moods and props (eval/3d, plan 12 Phase 8). Unknown ones fall back with a
+// warning instead of failing the storyboard: a calm default is better than another validation round.
+const POSE_GUESS = [[/sleep|nap|lie|lying|curl|rest|kneel|crouch|squat/, 'sit'], [/fly|soar|leap|hop|bounce|swim/, 'jump'], [/run|dash|chase|march|stroll|wander|swim/, 'walk'],
+  [/look|gaze|watch|wonder|ponder|listen|read|study|shy|hide/, 'think'], [/clap|celebrat|happy|laugh|victory|hug/, 'cheer'], [/greet|bow|salute/, 'wave'], [/speak|explain|argue|tell|chat|say/, 'talk'], [/show|present|teach/, 'point']];
+const MOOD_GUESS = [[/shy|nervous|anxious|scared|fear|confus|unsure|thought|doubt|tense|puzzl/, 'worried'], [/curious|wonder|amaz|astonish|shock/, 'surprised'], [/tired|drows|sleep|yawn|bored/, 'sleepy'],
+  [/cry|tear|lonely|gloom|upset|hurt|sorry/, 'sad'], [/mad|grump|annoy|frustrat|fierce|furious|stern/, 'angry']];
+const NEAR_GUESS = [[/space-?ship|rocket|boat|ship|wreck/, 'ship'], [/crater|boulder|stone|rock|cliff|moon-?rock/, 'rock'], [/panel|computer|counter|stall|cart|desk|console|workbench/, 'desk'],
+  [/couch|sofa/, 'sofa'], [/chair|seat|bench|log/, 'bench'], [/bonfire|fire|camp/, 'campfire'], [/hut|home|house|cottage|door/, 'house'], [/tree|bush|forest|oak|palm/, 'tree'], [/sign|post/, 'signpost'],
+  [/box|treasure|chest|crate/, 'chest'], [/lamp|lantern|light/, 'lamp-floor'], [/plant|flower|pot/, 'plant-pot'], [/tent/, 'tent'], [/table/, 'table'], [/bed/, 'bed'], [/fence|gate/, 'fence'], [/cake/, 'cake'], [/tv|television|screen/, 'tv'], [/shelf|book/, 'bookcase'], [/barrel/, 'barrel']];
+const CAMERA_GUESS = [[/two[- ]?shot/, 'two-shot'], [/over[- ]the[- ]shoulder|ots/, 'over-shoulder'], [/track|follow|chase|alongside/, 'follow'], [/push[- ]?in|dolly (in|toward)|zoom in|move in|creep/, 'dolly-in'],
+  [/pull[- ]?back|pull[- ]?out|dolly out|zoom out|pullback/, 'dolly-out'], [/orbit|circl|360|around/, 'orbit'], [/crane up|rise|rising|lift/, 'crane-up'], [/crane down|descend/, 'crane-down'],
+  [/extreme close|macro/, 'extreme-close'], [/close[- ]?up|close/, 'close'], [/pan left/, 'pan-left'], [/pan|sweep/, 'pan-right'], [/aerial|establish|extreme wide/, 'extreme-wide'], [/wide|long shot|vista/, 'wide'], [/medium|mid/, 'medium']];
+const guess = (v, table) => { const k = String(v ?? '').toLowerCase(); const hit = table.find(([re]) => re.test(k)); return hit ? hit[1] : null; };
+// A kind that is not built in but has a ready-made 3D design.
+const KIND_PRESETS = { monkey: 'monkey', ape: 'monkey', peacock: 'peacock-king', turtle: 'tortoise', tortoise: 'tortoise', crocodile: 'crocodile', croc: 'crocodile', alligator: 'crocodile', dragon: 'dragon',
+  ghost: 'ghost', astronaut: 'astronaut', cow: 'cow', goat: 'goat', parrot: 'parrot', snake: 'snake', tiger: 'tiger', frog: 'frog', bee: 'bee', snowman: 'snowman', teddy: 'teddy', 'teddy-bear': 'teddy', alien: 'alien', wizard: 'wizard', magician: 'wizard' };
+
 const aliasOf = (v, list, aliases) => { const k = key(v); return list.includes(k) ? k : aliases[k] || aliases[k.replace(/-/g, ' ')] || null; };
 const slugId = (v) => key(v).replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
 
@@ -70,6 +91,16 @@ function normCharacter(c, p, warn) {
   for (const [f, list, al] of [['pose', POSES, POSE_ALIASES], ['mood', CHARACTER_MOODS, MOOD_ALIASES], ['position', POSITIONS, POSITION_ALIASES], ['enter', ENTRANCES, ENTER_ALIASES], ['size', SIZES, { big: 'large', huge: 'large', tiny: 'small', little: 'small', normal: 'medium' }]]) {
     if (typeof o[f] === 'string') { const v = aliasOf(o[f], list, al); if (v && v !== o[f]) { warn(`${p}.${f}`, `"${o[f]}" changed to "${v}"`); o[f] = v; } }
   }
+  if (typeof o.pose === 'string' && !POSES.includes(o.pose)) {
+    const v = guess(o.pose, POSE_GUESS) || 'idle';
+    if (v === 'sit' && /sleep|nap|lie|lying|curl|rest/.test(o.pose) && !o.mood) o.mood = 'sleepy';
+    warn(`${p}.pose`, `"${o.pose}" is not a pose; changed to "${v}"`); o.pose = v;
+  }
+  if (typeof o.mood === 'string' && !CHARACTER_MOODS.includes(o.mood)) { const v = guess(o.mood, MOOD_GUESS) || 'happy'; warn(`${p}.mood`, `"${o.mood}" is not a mood; changed to "${v}"`); o.mood = v; }
+  if (typeof o.near === 'string' && !NEAR_PROPS.includes(o.near)) {
+    const v = guess(o.near, NEAR_GUESS);
+    if (v) { warn(`${p}.near`, `"${o.near}" changed to "${v}"`); o.near = v; } else { warn(`${p}.near`, `"${o.near}" is not a prop; removed (near takes a prop, not a character or place)`); delete o.near; }
+  }
   return o;
 }
 
@@ -84,7 +115,8 @@ function normLine(l, p, warn) {
   if (o.who === undefined) for (const k of ['speaker', 'character', 'name', 'by', 'from', 'id']) if (o[k] !== undefined) { o.who = o[k]; delete o[k]; break; }
   if (o.text === undefined) for (const k of ['line', 'say', 'says', 'dialogue', 'content', 'message', 'speech']) if (o[k] !== undefined) { o.text = o[k]; delete o[k]; break; }
   if (o.who !== undefined) o.who = slugId(o.who);
-  if (typeof o.mood === 'string') { const v = aliasOf(o.mood, CHARACTER_MOODS, MOOD_ALIASES); if (v) o.mood = v; }
+  if (typeof o.mood === 'string') { const v = aliasOf(o.mood, CHARACTER_MOODS, MOOD_ALIASES); if (v) o.mood = v; else { const g = guess(o.mood, MOOD_GUESS) || 'happy'; warn(`${p}.mood`, `"${o.mood}" is not a mood; changed to "${g}"`); o.mood = g; } }
+  if (typeof o.shot === 'string') { const v = aliasOf(o.shot, LINE_SHOTS, { ...CAMERA_ALIASES, reaction: 'reaction', 'reaction-shot': 'reaction', listener: 'reaction' }); if (v && v !== o.shot) { warn(`${p}.shot`, `"${o.shot}" changed to "${v}"`); o.shot = v; } }
   return o;
 }
 
@@ -107,6 +139,7 @@ export function normalise(input, warnings) {
 
   if (Array.isArray(input)) { warn('', 'top level was a list; treated as scenes'); return normalise({ scenes: input }, warnings); }
 
+  if (typeof sb.look === 'string') { const v = aliasOf(sb.look, LOOKS, LOOK_ALIASES); if (v && v !== sb.look) { warn('look', `"${sb.look}" changed to "${v}"`); sb.look = v; } }
   if (typeof sb.format === 'string') {
     const f = sb.format.trim().toLowerCase();
     if (!FORMATS.includes(f) && FORMAT_ALIASES[f]) { warn('format', `"${sb.format}" changed to "${FORMAT_ALIASES[f]}"`); sb.format = FORMAT_ALIASES[f]; }
@@ -163,8 +196,34 @@ export function normalise(input, warnings) {
       if (typeof o.kind === 'string') {
         const kk = key(o.kind);
         const v = CHARACTER_KINDS.includes(kk) ? kk : KIND_ALIASES[kk] || CHARACTER_KINDS.find(x => kk.includes(x));
-        if (v && v !== o.kind) warn(`cast[${i}].kind`, `"${o.kind}" changed to "${v}"`);
-        if (v) o.kind = v;
+        const pre = !v && KIND_PRESETS[kk] && o.design === undefined ? KIND_PRESETS[kk] : null;
+        if (pre) { warn(`cast[${i}].kind`, `"${o.kind}" is not a built-in kind; using "design": "preset:${pre}"`); o.design = `preset:${pre}`; delete o.kind; }
+        else if (v && v !== o.kind) warn(`cast[${i}].kind`, `"${o.kind}" changed to "${v}"`);
+        if (v && !pre) o.kind = v;
+      }
+      if (o.design === undefined && typeof o.library === 'string') { o.design = `library:${o.library.replace(/^library:/, '')}`; delete o.library; warn(`cast[${i}].library`, `changed to "design": "${o.design}"`); }
+      // A design can be a saved character ("library:<id>"), and implies a kind (used for the voice) when none is given.
+      if (typeof o.design === 'string' && o.design.startsWith('library:')) {
+        const saved = loadLibraryCharacter(o.design.slice(8));
+        if (saved) { o.design = saved.design; if (!o.kind && saved.kind) o.kind = saved.kind; }
+      }
+      if (typeof o.design === 'string' && o.design.startsWith('preset:')) {
+        const pr = presetDesign(o.design.slice(7));
+        if (pr) { o.design = pr.design; if (!o.kind) o.kind = pr.kind; if (!o.name) o.name = pr.name; }
+      }
+      if (isObj(o.design)) {
+        const d = o.design;
+        for (const [f, vals] of Object.entries({ plan: DESIGN.plan, size: DESIGN.size, build: DESIGN.build, head: DESIGN.head, ears: DESIGN.ears, eyes: DESIGN.eyes, snout: DESIGN.snout, horns: DESIGN.horns, hair: DESIGN.hair, outfit: DESIGN.outfit })) {
+          if (typeof d[f] === 'string') { const v = key(d[f]); const hit = vals.includes(v) ? v : vals.find(x => v.includes(x)); if (hit && hit !== d[f]) { warn(`cast[${i}].design.${f}`, `"${d[f]}" changed to "${hit}"`); d[f] = hit; } }
+        }
+        for (const f of ['extras', 'accessories']) {
+          if (typeof d[f] === 'string') d[f] = d[f].split(/[,;]\s*/).filter(Boolean);
+          if (Array.isArray(d[f])) d[f] = d[f].filter(x => !/^(none|no|nothing)$/i.test(String(x).trim())).map(x => key(x)).map(x => (DESIGN[f].includes(x) ? x : DESIGN[f].find(y => x.includes(y)) || DESIGN[f].find(y => y.includes('-') && y.split('-').every(w => x.includes(w.slice(0, 4)))) || x));
+        }
+        if (o.kind === undefined) {
+          const by = { biped: d.size === 'kid' || d.size === 'small' ? 'boy' : 'man', animal: 'fox', quadruped: 'dog', bird: 'owl', fish: 'cat', snake: 'fox', blob: 'cloud', robot: 'robot' };
+          o.kind = by[d.plan] || 'rabbit';
+        }
       }
       if (o.id === undefined) { o.id = slugId(o.name || o.kind || `char${i + 1}`); warn(`cast[${i}].id`, `missing; set to "${o.id}"`); }
       else o.id = slugId(o.id);
@@ -226,6 +285,15 @@ export function normalise(input, warnings) {
       if (Array.isArray(s.characters)) s.characters = s.characters.map((c, j) => normCharacter(c, `scenes[${i}].characters[${j}]`, warn));
       if (Array.isArray(s.lines)) s.lines = s.lines.map((l, j) => normLine(l, `scenes[${i}].lines[${j}]`, warn));
       if (typeof s.background === 'string') { const v = aliasOf(s.background, BACKGROUNDS, BACKGROUND_ALIASES) || BACKGROUNDS.find(b => key(s.background).includes(b)); if (v && v !== s.background) { warn(`scenes[${i}].background`, `"${s.background}" changed to "${v}"`); s.background = v; } }
+      if (typeof s.look === 'string') { const v = aliasOf(s.look, LOOKS, LOOK_ALIASES); if (v && v !== s.look) { warn(`scenes[${i}].look`, `"${s.look}" changed to "${v}"`); s.look = v; } }
+      if (typeof s.weather === 'string' && !WEATHER.includes(s.weather.toLowerCase())) {
+        const w = s.weather.toLowerCase(), v = /bubble|glitter|star|magic|twinkl|diya|lights/.test(w) ? 'sparkles' : /storm|drizzle|shower/.test(w) ? 'rain' : /firefl|glow/.test(w) ? 'fireflies' : /autumn|fall/.test(w) ? 'leaves' : /winter|frost/.test(w) ? 'snow' : 'none';
+        warn(`scenes[${i}].weather`, `"${s.weather}" changed to "${v}"`); s.weather = v;
+      }
+      if (typeof s.camera === 'string') {
+        const v = aliasOf(s.camera, CAMERAS, CAMERA_ALIASES) || (CAMERAS.includes(s.camera) ? s.camera : guess(s.camera, CAMERA_GUESS) || 'auto');
+        if (v !== s.camera) { warn(`scenes[${i}].camera`, `"${s.camera.slice(0, 60)}" changed to "${v}"`); s.camera = v; }
+      }
       if (typeof s.time === 'string') { const v = aliasOf(s.time, TIMES, TIME_ALIASES); if (v && v !== s.time) { warn(`scenes[${i}].time`, `"${s.time}" changed to "${v}"`); s.time = v; } }
     }
     if (s.template === 'steps' && typeof s.steps === 'string') { s.steps = s.steps.split(/\n|;|\d+\.\s/).map(x => x.trim()).filter(Boolean); warn(`scenes[${i}].steps`, 'text changed to a list'); }
@@ -309,6 +377,17 @@ export function validate(input, { baseDir = process.cwd(), limits = {} } = {}) {
     checkField(k === 'cast' && limits.cast ? { ...spec, max: limits.cast } : spec, sb[k], k, errors, warnings, ctx);
   }
   for (const k of Object.keys(sb)) if (!(k in TOP_FIELDS)) warnings.push({ path: k, message: `unknown field "${k}" ignored` });
+  // A design given as text that did not resolve: say which names exist (instead of "must be an object").
+  (Array.isArray(sb.cast) ? sb.cast : []).forEach((c, i) => {
+    if (!isObj(c) || typeof c.design !== 'string') return;
+    const at = errors.findIndex(e => e.path === `cast[${i}].design`);
+    const e = c.design.startsWith('library:')
+      ? { path: `cast[${i}].design`, message: `no saved character "${c.design.slice(8)}"`, fix: `use one from video_character action list, a preset (preset:${Object.keys(PRESETS).join(', preset:')}) or a design object` }
+      : { path: `cast[${i}].design`, message: `unknown design "${c.design}"`, fix: `use preset:<id> with one of: ${Object.keys(PRESETS).join(', ')}; or a design object { "plan": ... }` };
+    if (at >= 0) errors[at] = e; else errors.push(e);
+    const k = errors.findIndex(x => x.path === `cast[${i}]` && /missing "kind"/.test(x.message));
+    if (k >= 0) errors.splice(k, 1);
+  });
 
   if (Array.isArray(sb.scenes)) {
     checkField({ type: 'list', min: limits.minScenes ?? 2, max: limits.scenes || TOP_FIELDS.scenes.max }, sb.scenes, 'scenes', errors, warnings, ctx);

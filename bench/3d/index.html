@@ -1,0 +1,51 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;overflow:hidden;background:#000}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/pkg/package/build/three.module.js","three/addons/":"/pkg/package/examples/jsm/"}}</script></head><body>
+<script type="module">
+import * as THREE from 'three';
+import {OutlineEffect} from 'three/addons/effects/OutlineEffect.js';
+import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
+import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
+import {OutlinePass} from 'three/addons/postprocessing/OutlinePass.js';
+import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
+import {FXAAShader} from 'three/addons/shaders/FXAAShader.js';
+const q=new URLSearchParams(location.search);
+const W=+q.get('w'),H=+q.get('h'),SH=+q.get('shadow')||0,AA=q.get('aa')==='1',OL=q.get('outline')||'none',INST=q.get('inst')==='1',FX=q.get('fxaa')==='1';
+const r=new THREE.WebGLRenderer({antialias:AA,preserveDrawingBuffer:true,powerPreference:'high-performance'});
+r.setPixelRatio(1);r.setSize(W,H);document.body.appendChild(r.domElement);
+r.shadowMap.enabled=SH>0;r.shadowMap.type=THREE.PCFShadowMap;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9fd3ff);scene.fog=new THREE.Fog(0x9fd3ff,30,90);
+const cam=new THREE.PerspectiveCamera(45,W/H,0.1,200);
+const grad=new THREE.DataTexture(new Uint8Array([90,170,255]),3,1,THREE.RedFormat);grad.minFilter=grad.magFilter=THREE.NearestFilter;grad.needsUpdate=true;
+const toon=c=>new THREE.MeshToonMaterial({color:c,gradientMap:grad});
+scene.add(new THREE.HemisphereLight(0xffffff,0x557744,1.2));
+const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.position.set(20,30,10);sun.castShadow=SH>0;
+if(SH){sun.shadow.mapSize.set(SH,SH);Object.assign(sun.shadow.camera,{left:-40,right:40,top:40,bottom:-40,far:100});}
+scene.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),toon(0x7ccf5a));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+let seed=12345;const rnd=()=>((seed=(seed*16807)%2147483647)/2147483647);
+const trunkG=new THREE.CylinderGeometry(.25,.35,2,8),leafG=new THREE.ConeGeometry(1.4,3,10);
+const trunkM=toon(0x8b5a2b),leafM=toon(0x2f8f3a);const N=40;
+if(INST){const t=new THREE.InstancedMesh(trunkG,trunkM,N),l=new THREE.InstancedMesh(leafG,leafM,N);const m=new THREE.Matrix4();
+ for(let i=0;i<N;i++){const x=rnd()*60-30,z=-rnd()*40-5;m.makeTranslation(x,1,z);t.setMatrixAt(i,m);m.makeTranslation(x,3.4,z);l.setMatrixAt(i,m);}
+ t.castShadow=l.castShadow=true;scene.add(t,l);}
+else for(let i=0;i<N;i++){const x=rnd()*60-30,z=-rnd()*40-5;const t=new THREE.Mesh(trunkG,trunkM),l=new THREE.Mesh(leafG,leafM);t.position.set(x,1,z);l.position.set(x,3.4,z);t.castShadow=l.castShadow=true;scene.add(t,l);}
+const chars=[];const cols=[0xffcc66,0xff6677,0x66aaff];
+for(let i=0;i<3;i++){const g=new THREE.Group();const b=new THREE.Mesh(new THREE.CapsuleGeometry(.6,1.2,8,24),toon(cols[i]));b.position.y=1.2;
+ const h=new THREE.Mesh(new THREE.SphereGeometry(.7,32,24),toon(cols[i]));h.position.y=2.8;b.castShadow=h.castShadow=true;g.add(b,h);scene.add(g);chars.push(g);}
+let render=()=>r.render(scene,cam);
+if(OL==='hull'){const e=new OutlineEffect(r,{defaultThickness:0.004});render=()=>e.render(scene,cam);}
+if(OL==='pass'||FX){const c=new EffectComposer(r);c.addPass(new RenderPass(scene,cam));
+ if(OL==='pass'){const op=new OutlinePass(new THREE.Vector2(W,H),scene,cam,chars);op.edgeStrength=4;op.visibleEdgeColor.set(0x000000);c.addPass(op);}
+ c.addPass(new OutputPass());if(FX){const f=new ShaderPass(FXAAShader);f.material.uniforms.resolution.value.set(1/W,1/H);c.addPass(f);}render=()=>c.render();}
+const gl=r.getContext();const px=new Uint8Array(4);
+window.__info=()=>{const e=gl.getExtension('WEBGL_debug_renderer_info');return e?gl.getParameter(e.UNMASKED_RENDERER_WEBGL):'?';};
+window.__seek=(ms)=>{const t=ms/1000;
+ chars.forEach((g,i)=>{g.position.set(-4+i*4+Math.sin(t+i)*1.5,Math.abs(Math.sin(t*4+i))*0.6,Math.cos(t*.7+i)*2);g.rotation.y=t+i;});
+ cam.position.set(Math.sin(t*.2)*14,6,16);cam.lookAt(0,1.5,-3);
+ const a=performance.now();render();const b=performance.now();gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px);const c=performance.now();
+ return {submit:b-a,finish:c-a};};
+window.__toDataURL=()=>{const a=performance.now();const s=r.domElement.toDataURL('image/jpeg',0.9);return {ms:performance.now()-a,len:s.length};};
+window.__readFull=()=>{const a=performance.now();const buf=new Uint8Array(W*H*4);gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,buf);return performance.now()-a;};
+window.__ready=true;
+</script></body></html>

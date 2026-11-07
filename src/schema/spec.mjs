@@ -20,7 +20,29 @@ export const CHARACTER_KINDS = [
   'rabbit', 'cat', 'dog', 'bear', 'panda', 'fox', 'elephant', 'lion', 'mouse', 'owl',
   'robot', 'star', 'sun', 'moon', 'cloud',
 ];
-export const POSES = ['idle', 'wave', 'walk', 'jump', 'cheer', 'point', 'think', 'dance'];
+export const POSES = ['idle', 'wave', 'walk', 'jump', 'cheer', 'point', 'think', 'dance', 'sit', 'talk'];
+// 3D look (plan 12): how the scene is drawn and how the camera films it.
+export const LOOKS = ['2d', '3d'];
+// Any character in 3D (plan 12, Phase 6): a design made only of choices from these lists.
+export const DESIGN = {
+  plan: ['biped', 'animal', 'quadruped', 'bird', 'fish', 'snake', 'blob', 'robot'],
+  size: ['small', 'kid', 'adult', 'big'],
+  build: ['slim', 'round', 'chunky', 'ghost', 'snowman'],
+  head: ['round', 'oval', 'wide', 'long'],
+  ears: ['none', 'round', 'pointy', 'long', 'floppy', 'big-round', 'elephant', 'small'],
+  eyes: ['cute', 'big', 'small', 'cyclops'],
+  snout: ['none', 'button', 'muzzle', 'long', 'beak', 'trunk', 'pig'],
+  horns: ['none', 'small', 'ram', 'unicorn', 'antlers', 'antenna'],
+  hair: ['none', 'short', 'long', 'bun', 'spiky', 'beard'],
+  extras: ['tail-short', 'tail-long', 'tail-curl', 'tail-fluffy', 'tail-fan', 'wings', 'bat-wings', 'mane', 'shell', 'fins', 'spikes', 'crest', 'whiskers', 'stripes', 'spots', 'cape', 'sting'],
+  outfit: ['none', 'shirt', 'dress', 'kurta', 'saree', 'vest', 'suit', 'robe', 'armour', 'spacesuit', 'apron'],
+  accessories: ['crown', 'cap', 'hat', 'wizard-hat', 'helmet', 'glasses', 'bow', 'halo', 'scarf', 'bag', 'wand', 'flute', 'stick', 'kettle', 'umbrella', 'book'],
+};
+export const WEATHER = ['none', 'rain', 'snow', 'leaves', 'fireflies', 'sparkles'];
+export const NEAR_PROPS = ["sofa", "tree", "tree-large", "house", "tent", "campfire", "desk", "bed", "table", "bench", "fridge", "stove", "bookcase", "signpost", "barrel", "chest", "plant-pot", "tv", "rock", "ship", "fence", "cake", "lamp-floor"];
+export const CAMERAS = ['auto', 'extreme-wide', 'wide', 'full', 'medium', 'medium-close', 'close', 'extreme-close', 'two-shot', 'over-shoulder', 'dolly-in', 'dolly-out', 'orbit', 'pan-left', 'pan-right', 'crane-up', 'crane-down', 'follow'];
+// Per spoken line (3D): the director picks automatically; these force a shot for that line.
+export const LINE_SHOTS = ['auto', 'close', 'medium-close', 'over-shoulder', 'two-shot', 'medium', 'wide', 'reaction'];
 export const CHARACTER_MOODS = ['happy', 'sad', 'surprised', 'angry', 'worried', 'sleepy'];
 export const POSITIONS = ['far-left', 'left', 'center', 'right', 'far-right'];
 export const ENTRANCES = ['none', 'walk-in', 'pop', 'fly-in', 'fade'];
@@ -54,18 +76,20 @@ const enm = (values, extra = {}) => ({ type: 'enum', values, ...extra });
 // A character placed in a scene: a cast id (or a kind such as "rabbit") plus how it acts.
 const character = obj({
   who: str(24, { required: true, doc: 'cast id, or a character kind like "rabbit"' }),
-  pose: enm(POSES, { doc: 'what it does: idle, wave, walk, jump, cheer, point, think, dance' }),
+  pose: enm(POSES, { doc: 'what it does: idle, wave, walk, jump, cheer, point, think, dance, sit, talk' }),
   mood: enm(CHARACTER_MOODS, { doc: 'face: happy, sad, surprised, angry, worried, sleepy' }),
   position: enm(POSITIONS, { doc: 'where it stands; leave empty to spread characters evenly' }),
   facing: enm(['left', 'right'], { doc: 'which way it looks' }),
   enter: enm(ENTRANCES, { doc: 'how it appears: walk-in, pop, fly-in, fade' }),
   size: enm(SIZES),
+  near: enm(NEAR_PROPS, { doc: '3D only: a prop placed next to this character, e.g. tent, sofa, tree, desk, bed, campfire' }),
 });
 // One spoken line: the character says it in its own voice, with a speech bubble.
 const line = obj({
   who: str(24, { required: true, doc: 'cast id of the speaker' }),
   text: str(140, { required: true, soft: 90, doc: 'what the character says: one short sentence' }),
   mood: enm(CHARACTER_MOODS, { doc: 'face while saying it' }),
+  shot: enm(LINE_SHOTS, { doc: '3D only, optional: close, medium-close, over-shoulder, two-shot, medium, wide, or reaction (show the listener)' }),
 });
 
 const box = obj({
@@ -162,6 +186,9 @@ export const TEMPLATES = {
       kicker: str(40, { doc: 'small label above the headline' }),
       text: str(140, { soft: 100, doc: 'one storybook line shown on screen (optional)' }),
       lines: list(line, 6, { doc: 'characters speaking, each in their own voice (optional)' }),
+      look: enm(LOOKS, { doc: '2d or 3d for this scene; normally set once at the top' }),
+      weather: enm(WEATHER, { doc: '3D only: rain, snow, leaves, fireflies, sparkles' }),
+      camera: enm(CAMERAS, { doc: '3D only: wide, medium, close, two-shot, dolly-in, dolly-out, orbit, pan-left, pan-right, crane-up; default auto' }),
     },
     example: { template: 'story', background: 'meadow', time: 'night', characters: [{ who: 'miko', pose: 'wave', mood: 'surprised', position: 'left' }, { who: 'tara', enter: 'fly-in', mood: 'sad', position: 'right' }], narration: 'One night, Miko saw a little star fall into the grass.' },
   },
@@ -172,6 +199,9 @@ export const TEMPLATES = {
       time: enm(TIMES),
       characters: list(character, 4, { doc: 'who is on screen; defaults to the speakers' }),
       lines: list(line, 6, { required: true, min: 1, doc: '1-6 lines in order' }),
+      look: enm(LOOKS),
+      weather: enm(WEATHER),
+      camera: enm(CAMERAS, { doc: '3D only; default auto: medium shot, then a close-up on each speaker' }),
     },
     example: { template: 'dialogue', background: 'meadow', time: 'night', lines: [{ who: 'tara', text: 'I fell from the sky and cannot find my way home.', mood: 'sad' }, { who: 'miko', text: 'Do not worry! I will help you.', mood: 'happy' }] },
   },
@@ -206,6 +236,10 @@ export const TOP_FIELDS = {
   platform: enm(PLATFORM_IDS, { doc: 'where it will be posted: sets frame size, safe zones, caption style and extra files (thumbnail, cover, chapters)' }),
   format: enm(FORMATS, { doc: '16:9 YouTube/website, 9:16 Reels/Shorts, 1:1 square, 4:5 feed post. Usually set by "platform"' }),
   theme: enm(THEMES),
+  look: enm(LOOKS, { doc: '2d (illustrated cartoon, default) or 3d (3D characters and worlds) for story and dialogue scenes' }),
+  models: enm(['auto', 'built-in', 'pack'], { doc: '3D only: auto uses the best downloaded models where installed; built-in = characters made in code for everyone; pack = downloaded models for every kind that has one' }),
+  scenery: enm(['auto', 'built-in'], { doc: '3D only: auto uses the downloaded world pack (furniture, trees, houses, buildings) where installed; built-in = places made in code' }),
+  cinematic: { type: 'bool', doc: '3D, 16:9: film look with 2.39:1 letterbox bars and a gentle hand-held camera' },
   accent: { type: 'color', doc: 'highlight colour, e.g. #ff9a3c' },
   brand: obj({ name: str(40), logo: { type: 'path' } }),
   voice: obj({ provider: enm(VOICE_PROVIDERS), voice: str(60), rate: str(8, { doc: 'e.g. +4% or -6%' }) }),
@@ -225,6 +259,17 @@ export const TOP_FIELDS = {
     voice: str(60, { doc: 'voice for this character; default picks one from the narrator language' }),
     pitch: str(8, { doc: 'voice pitch, e.g. +20% for a child, -15% for a big animal' }),
     rate: str(8, { doc: 'speaking speed, e.g. +5%' }),
+    design: obj({
+      plan: enm(DESIGN.plan, { doc: 'body plan: biped (person-like), animal (standing animal), quadruped (4 legs), bird, fish, snake, blob (ghost, snowman, round thing), robot' }),
+      species: str(30, { doc: 'what it is, in words (for you; the look comes from the fields)' }),
+      size: enm(DESIGN.size), build: enm(DESIGN.build), head: enm(DESIGN.head),
+      ears: enm(DESIGN.ears), eyes: enm(DESIGN.eyes), snout: enm(DESIGN.snout), horns: enm(DESIGN.horns), hair: enm(DESIGN.hair),
+      extras: list(enm(DESIGN.extras), 8, { doc: 'up to 8 of: ' + DESIGN.extras.join(', ') }),
+      outfit: enm(DESIGN.outfit),
+      accessories: list(enm(DESIGN.accessories), 4, { doc: 'up to 4 of: ' + DESIGN.accessories.join(', ') }),
+      colors: obj({ main: { type: 'color' }, belly: { type: 'color' }, accent: { type: 'color' }, outfit: { type: 'color' }, hair: { type: 'color' } }),
+    }, { doc: '3D only: design any character from parts, or "preset:<id>" for a ready-made one (peacock-king, crocodile, dragon, tortoise, monkey, ghost, astronaut, cow, goat, parrot, snake, elephant-queen, tiger, frog, bee, snowman, teddy, alien, wizard, robot-chaiwala), or "library:<id>" for a saved one' }),
+    model: enm(['auto', 'built-in', 'pack'], { doc: '3D only: auto picks the best look; built-in = character made in code; pack = the downloaded model for this kind (video_assets)' }),
   }), 6, { doc: 'the characters of a story; scenes refer to them by id' }),
   scenes: { type: 'list', of: null, required: true, min: 2, max: 16, doc: '2-16 scenes; the recipe depends on the video type' },
 };

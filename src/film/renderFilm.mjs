@@ -55,7 +55,7 @@ function shiftScene(sc, off) {
 }
 
 /** Render one shot's frames into a silent H.264 segment. */
-async function renderSegment({ ffmpeg, browser, shot, fps, onFrames }) {
+async function renderSegment({ ffmpeg, browser, shot, fps, onFrames, gpu }) {
   const tmp = path.join(shot.dir, 'segment.tmp.mp4');
   const args = ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-',
     '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(fps), '-frames:v', String(shot.frames), tmp];
@@ -64,11 +64,10 @@ async function renderSegment({ ffmpeg, browser, shot, fps, onFrames }) {
   ff.stderr.on('data', d => { ffErr += d; });
   const ffDone = new Promise((res, rej) => ff.on('close', code => (code === 0 ? res() : rej(new Error(`ffmpeg: ${ffErr.trim().split('\n').slice(-4).join(' | ')}`)))));
   ff.stdin.on('error', () => {});
-  const sess = await openBuild(shot.build.file, shot.build.stage, { shared: browser });
+  const sess = await openBuild(shot.build.file, shot.build.stage, { shared: browser, lowres: !!shot.build.has3d && !gpu });
   try {
     for (let f = 0; f < shot.frames; f++) {
-      await sess.seek((f * 1000) / fps);
-      const buf = await sess.frame('jpeg', 92);
+      const buf = await sess.grab((f * 1000) / fps, 92);
       if (!ff.stdin.write(buf)) await new Promise(r => ff.stdin.once('drain', r));
       if (f === Math.min(shot.frames - 1, Math.round(fps * 1.2))) fs.writeFileSync(path.join(shot.dir, 'thumb.jpg'), buf);
       if (f % 15 === 14) onFrames(15);
@@ -171,10 +170,14 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
     const dir = path.join(projectDir, 'shots', ref.id);
     // In a film, shots cut straight to each other unless the shot asks for a transition.
     const rawShot = v.film.sequences[ref.seqIndex]?.shots?.[ref.index];
-    const scene = rawShot && rawShot.transition ? sb.scenes[i] : { ...sb.scenes[i], transition: 'cut' };
+    const scene = rawShot && rawShot.transition ? { ...sb.scenes[i] } : { ...sb.scenes[i], transition: 'cut' };
+    // The director establishes a new place only when it differs from the previous shot's place.
+    const prev = sb.scenes[i - 1];
+    if (prev && (prev.template === 'story' || prev.template === 'dialogue')) scene._prevPlace = `${prev.background || 'meadow'}|${prev.time || 'day'}`;
+    else if (prev) scene._prevPlace = '';
     const mini = { ...sb, scenes: [scene] };
     const vo = voices[i];
-    const timeline = buildTimeline(mini, [vo?.seconds ?? null], [vo?.parts ?? null], [vo?.words ?? null]);
+    const timeline = buildTimeline(mini, [vo?.seconds ?? null], [vo?.parts ?? null], [vo?.words ?? null], [vo?.partWords ?? null]);
     const build = compile(mini, timeline, { baseDir, buildDir: path.join(dir, 'build'), progress: false });
     const html = fs.readFileSync(build.file, 'utf8');
     const frames = Math.max(1, Math.round(timeline.duration * fps));
@@ -213,7 +216,7 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
         const started = Date.now();
         project.shots[shot.id].status = 'rendering';
         try {
-          await renderSegment({ ffmpeg, browser: browsers[w], shot, fps, onFrames: (n) => { framesDone += n; } });
+          await renderSegment({ ffmpeg, browser: browsers[w], shot, fps, gpu, onFrames: (n) => { framesDone += n; } });
           writeJson(path.join(shot.dir, 'segment.json'), { hash: shot.hash, frames: shot.frames, fps, seconds: shot.seconds, renderedAt: new Date().toISOString() });
           Object.assign(project.shots[shot.id], { status: 'done', renderSeconds: +((Date.now() - started) / 1000).toFixed(1), error: undefined });
         } catch (e) {

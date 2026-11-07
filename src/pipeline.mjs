@@ -40,7 +40,7 @@ export async function prepare(storyboardFile, { voice = 'auto', onProgress = () 
       voices = storyboard.scenes.map(() => null);
     }
   }
-  const timeline = buildTimeline(storyboard, voices.map(x => x?.seconds ?? null), voices.map(x => x?.parts ?? null), voices.map(x => x?.words ?? null));
+  const timeline = buildTimeline(storyboard, voices.map(x => x?.seconds ?? null), voices.map(x => x?.parts ?? null), voices.map(x => x?.words ?? null), voices.map(x => x?.partWords ?? null));
   fs.writeFileSync(path.join(buildDir, 'timeline.json'), JSON.stringify(timeline, null, 2));
   const build = compile(storyboard, timeline, { baseDir, buildDir });
   return { storyboard, warnings: v.warnings, baseDir, outDir, buildDir, timeline, build, voices, voiceNote };
