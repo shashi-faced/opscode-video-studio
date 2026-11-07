@@ -12,7 +12,14 @@ import { PLATFORMS } from '../schema/platforms.mjs';
 import { execFileSync } from 'node:child_process';
 
 const plainText = (s) => String(s ?? '').replace(/\*/g, '').replace(/\s+/g, ' ').trim();
-const clock = (sec) => { const t = Math.floor(sec); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+const clock = (sec) => {
+  const t = Math.floor(sec);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+};
 
 /** Short label for a scene: its headline, else its kicker, else the start of its narration. */
 function sceneLabel(sc, i) {

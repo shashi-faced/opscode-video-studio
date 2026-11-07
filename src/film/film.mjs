@@ -8,7 +8,7 @@
 import path from 'node:path';
 import { loadStoryboard, validate } from '../schema/validate.mjs';
 
-export const MAX_SHOTS = 400;
+export const MAX_SHOTS = 1000;
 export const MAX_CAST = 24;
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const idOk = (s) => /^[a-z0-9][a-z0-9_-]{0,39}$/.test(s);

@@ -10,7 +10,7 @@ export const PLATFORMS = {
   youtube: {
     label: 'YouTube video (16:9)', format: '16:9',
     safe: { top: 0.05, bottom: 0.05, left: 0.04, right: 0.04 },
-    warnSec: 600, captions: { style: 'line' }, progress: true,
+    warnSec: 3600, captions: { style: 'line' }, progress: true,
     extras: ['thumbnail', 'chapters'],
   },
   'youtube-short': {
