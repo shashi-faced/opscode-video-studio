@@ -1,0 +1,32 @@
+{
+  "title": "Maya and Leo Adventure",
+  "type": "story",
+  "look": "3d",
+  "cinematic": true,
+  "cast": [
+    { "id": "maya", "kind": "girl", "name": "Maya" },
+    { "id": "leo", "kind": "boy", "name": "Leo" }
+  ],
+  "scenes": [
+    {
+      "template": "story",
+      "background": "forest",
+      "time": "day",
+      "headline": "Maya and Leo",
+      "characters": [
+        { "who": "maya", "pose": "wave" },
+        { "who": "leo", "pose": "idle" }
+      ],
+      "narration": "Maya and Leo set off on a journey into the enchanted forest."
+    },
+    {
+      "template": "dialogue",
+      "background": "forest",
+      "time": "day",
+      "lines": [
+        { "who": "maya", "text": "Look at these glowing flowers, Leo! They are magic!", "mood": "surprised" },
+        { "who": "leo", "text": "They sparkle under the sunbeams! Let's explore further.", "mood": "happy" }
+      ]
+    }
+  ]
+}

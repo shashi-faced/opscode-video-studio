@@ -29,29 +29,165 @@ const easeOut = (k) => 1 - Math.pow(1 - k, 3);
 const easeBack = (k) => { const c = 1.70158; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
 const col = (c) => new THREE.Color(c);
 
-// ---------- materials ----------
-const ramp = (() => {
-  const d = new Uint8Array([90, 170, 255]);
-  const t = new THREE.DataTexture(d, 3, 1, THREE.RedFormat);
-  t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
-  return t;
-})();
+// ---------- materials & stylized shaders ----------
+function makeGradientTexture(stops, width = 256) {
+  const d = new Uint8Array(width * 4);
+  for (let i = 0; i < width; i++) {
+    const u = i / (width - 1);
+    let s0 = stops[0], s1 = stops[stops.length - 1];
+    for (let k = 0; k < stops.length - 1; k++) {
+      if (u >= stops[k][0] && u <= stops[k + 1][0]) {
+        s0 = stops[k]; s1 = stops[k + 1];
+        break;
+      }
+    }
+    const span = Math.max(1e-5, s1[0] - s0[0]);
+    const t = Math.max(0, Math.min(1, (u - s0[0]) / span));
+    const sm = t * t * (3 - 2 * t);
+    const c0 = s0[1], c1 = s1[1];
+    d[i * 4 + 0] = Math.round(lerp(c0[0], c1[0], sm));
+    d[i * 4 + 1] = Math.round(lerp(c0[1], c1[1], sm));
+    d[i * 4 + 2] = Math.round(lerp(c0[2], c1[2], sm));
+    d[i * 4 + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(d, width, 1, THREE.RGBAFormat);
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// 1. Smooth 4-step cel-shading ramp
+const toonRamp = makeGradientTexture([
+  [0.0, [82, 82, 94]],
+  [0.32, [82, 82, 94]],
+  [0.37, [162, 162, 174]],
+  [0.66, [162, 162, 174]],
+  [0.71, [220, 222, 230]],
+  [0.91, [220, 222, 230]],
+  [0.96, [255, 255, 255]],
+  [1.0, [255, 255, 255]],
+]);
+// 2. Subsurface Scattering skin ramp: warm crimson/peach subcutaneous scattering at terminator
+const skinRamp = makeGradientTexture([
+  [0.0, [98, 82, 94]],
+  [0.26, [126, 106, 116]],
+  [0.40, [255, 116, 92]],      // SSS terminator: warm blood-vessel scattering glow
+  [0.55, [246, 206, 186]],     // transition to direct light
+  [0.82, [255, 240, 230]],     // direct warm diffuse
+  [0.96, [255, 255, 255]],     // soft specular
+  [1.0, [255, 255, 255]],
+]);
+// 3. Stylized hair ramp with anisotropic sheen highlight band
+const hairRamp = makeGradientTexture([
+  [0.0, [75, 70, 85]],
+  [0.35, [130, 125, 140]],
+  [0.55, [190, 185, 200]],
+  [0.68, [255, 248, 240]],     // anisotropic specular hair ring
+  [0.80, [215, 210, 225]],
+  [1.0, [255, 255, 255]],
+]);
+const ramp = toonRamp;
+
 const matCache = new Map();
-/** Cel-shaded material with a black outline (outline: false to skip, or a thickness). */
-function toon(color, { outline = 0.0045, emissive = null, opacity = 1 } = {}) {
-  const k = `${color}|${outline}|${emissive}|${opacity}`;
+/** Cel-shaded material with custom gradient ramps (skin SSS or hair sheen). */
+function toon(color, { outline = 0.0042, emissive = null, opacity = 1, skin = false, hair = false } = {}) {
+  const rampTex = skin ? skinRamp : hair ? hairRamp : toonRamp;
+  const k = `${color}|${outline}|${emissive}|${opacity}|${skin}|${hair}`;
   if (matCache.has(k)) return matCache.get(k);
-  const m = new THREE.MeshToonMaterial({ color: col(color), gradientMap: ramp, transparent: opacity < 1, opacity });
+  const m = new THREE.MeshToonMaterial({ color: col(color), gradientMap: rampTex, transparent: opacity < 1, opacity });
   if (emissive) { m.emissive = col(emissive); m.emissiveIntensity = 1; }
-  m.userData.outlineParameters = outline ? { thickness: outline, color: [0.07, 0.05, 0.06], alpha: 1 } : { visible: false };
+  m.userData.outlineParameters = outline ? { thickness: outline, color: [0.06, 0.04, 0.05], alpha: 1 } : { visible: false };
   matCache.set(k, m);
   return m;
 }
+function skinToon(color, opts = {}) { return toon(color, { ...opts, skin: true }); }
+function hairToon(color, opts = {}) { return toon(color, { ...opts, hair: true }); }
+
 function flat(color, { opacity = 1 } = {}) {
   const m = new THREE.MeshBasicMaterial({ color: col(color), transparent: opacity < 1, opacity, fog: false });
   m.userData.outlineParameters = { visible: false };
   return m;
 }
+
+// ---------- organic sculpt geometry generators ----------
+function createStylizedHeadGeometry(r = 1, { jawWidth = 0.72, cheekPuff = 1.12, chinDrop = 0.08 } = {}) {
+  const geo = new THREE.SphereGeometry(r, 32, 24);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const ny = y / r;
+    if (ny < 0) {
+      const jawFactor = 1.0 - (1.0 - jawWidth) * Math.pow(-ny, 1.2);
+      x *= jawFactor;
+      const cheekWeight = Math.exp(-Math.pow((ny + 0.15) / 0.28, 2)) * Math.max(0, z / r);
+      x *= (1.0 + cheekWeight * (cheekPuff - 1.0));
+      z += cheekWeight * 0.08 * r;
+      const chinWeight = Math.exp(-Math.pow((ny + 0.82) / 0.22, 2)) * Math.max(0, z / r);
+      z += chinWeight * (chinDrop + 0.06) * r;
+    } else {
+      const browFlatten = Math.exp(-Math.pow((ny - 0.28) / 0.25, 2)) * Math.max(0, z / r);
+      z -= browFlatten * 0.03 * r;
+      if (z < 0) {
+        const skullWeight = Math.exp(-Math.pow((ny - 0.4) / 0.4, 2));
+        z -= skullWeight * 0.04 * r;
+      }
+    }
+    pos.setXYZ(i, x, y, z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function createStylizedTorsoGeometry(w = 1, h = 1, d = 1, { waistTaper = 0.82, hipWidth = 1.05 } = {}) {
+  const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 24, 16);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const ny = y;
+    let widthScale = 1.0;
+    if (ny > 0) {
+      widthScale = 1.0 + (ny / 0.5) * 0.22;
+    } else {
+      const waistFactor = Math.exp(-Math.pow((ny + 0.15) / 0.25, 2));
+      widthScale = (1.0 - (1.0 - waistTaper) * waistFactor) * (1.0 + Math.pow(-ny / 0.5, 2) * (hipWidth - 1.0));
+    }
+    x *= widthScale * w;
+    if (ny > 0.05 && z > 0) {
+      const chestPuff = Math.exp(-Math.pow((ny - 0.25) / 0.25, 2));
+      z += chestPuff * 0.08 * d;
+    }
+    z *= d;
+    y *= h;
+    pos.setXYZ(i, x, y, z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function createStylizedShoeGeometry(len = 1, w = 1, h = 1) {
+  const geo = new THREE.BoxGeometry(w, h, len, 8, 4, 12);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const nz = z / len;
+    if (nz > 0.1) {
+      const toeTaper = 1.0 - Math.pow((nz - 0.1) / 0.4, 1.8) * 0.35;
+      x *= toeTaper;
+    }
+    if (nz > 0.15) {
+      y += Math.pow((nz - 0.15) / 0.35, 2) * 0.18 * h;
+    }
+    if (nz < -0.3) {
+      const heelRound = 1.0 - Math.pow((-nz - 0.3) / 0.2, 2) * 0.25;
+      x *= heelRound;
+    }
+    pos.setXYZ(i, x, y, z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
 const G = {
   sphere: new THREE.SphereGeometry(1, 28, 18),
   lowSphere: new THREE.IcosahedronGeometry(1, 1),
@@ -61,6 +197,11 @@ const G = {
   capsule: new THREE.CapsuleGeometry(0.5, 1, 8, 16),
   hemi: new THREE.SphereGeometry(1, 28, 14, 0, Math.PI * 2, 0, Math.PI * 0.56),
   rock: new THREE.DodecahedronGeometry(1, 0),
+  head: createStylizedHeadGeometry(1),
+  headFemale: createStylizedHeadGeometry(1, { jawWidth: 0.68, cheekPuff: 1.15 }),
+  torso: createStylizedTorsoGeometry(1, 1, 1),
+  torsoFemale: createStylizedTorsoGeometry(1, 1, 1, { waistTaper: 0.74, hipWidth: 1.12 }),
+  shoe: createStylizedShoeGeometry(1, 1, 1),
 };
 function mesh(geo, mat, { p = [0, 0, 0], s = [1, 1, 1], r = [0, 0, 0], shadow = false, parent = null } = {}) {
   const m = new THREE.Mesh(geo, mat);
@@ -86,25 +227,40 @@ const PAL = {
 // ---------- characters ----------
 function addFace(head, r, { eyeColor = '#2a1d1a', mood = 'happy', cheeks = true, beak = false, robot = false, eyeScale = 1, eyeY = 0.1 } = {}) {
   const face = { eyes: [], brows: [], mouths: {} };
-  const ez = 0.86 * r;
+  const ez = 0.935 * r;
   for (const sx of [-1, 1]) {
     const eg = group(head, [sx * 0.36 * r, eyeY * r, ez]);
     if (robot) {
       mesh(G.sphere, toon('#7ff6ff', { outline: false, emissive: '#3ad7ff' }), { s: [0.17 * r, 0.17 * r, 0.07 * r], parent: eg });
+      mesh(G.cyl, toon('#1b2838', { outline: false }), { p: [0, 0, -0.01 * r], r: [Math.PI / 2, 0, 0], s: [0.19 * r, 0.02 * r, 0.19 * r], parent: eg });
     } else {
-      mesh(G.sphere, toon('#ffffff', { outline: 0.0025 }), { s: [0.21 * r * eyeScale, 0.27 * r * eyeScale, 0.1 * r], parent: eg });
-      mesh(G.sphere, toon(eyeColor, { outline: false }), { p: [0, -0.02 * r, 0.07 * r], s: [0.12 * r * eyeScale, 0.16 * r * eyeScale, 0.06 * r], parent: eg });
-      mesh(G.sphere, flat('#ffffff'), { p: [0.04 * r, 0.04 * r, 0.12 * r], s: 0.035 * r, parent: eg });
+      // 1. Warm ivory sclera
+      mesh(G.sphere, toon('#fcfbfa', { outline: 0.003 }), { s: [0.21 * r * eyeScale, 0.27 * r * eyeScale, 0.08 * r], parent: eg });
+      // 2. Limbal ring: deep dark contour surrounding the iris
+      mesh(G.sphere, toon(darker(eyeColor, 0.7), { outline: false }), { p: [0, -0.018 * r, 0.03 * r], s: [0.135 * r * eyeScale, 0.175 * r * eyeScale, 0.045 * r], parent: eg });
+      // 3. Vibrant iris body
+      mesh(G.sphere, toon(eyeColor, { outline: false }), { p: [0, -0.018 * r, 0.038 * r], s: [0.118 * r * eyeScale, 0.155 * r * eyeScale, 0.04 * r], parent: eg });
+      // 4. Inner iris warm striation disc
+      mesh(G.sphere, toon(lighter(eyeColor, 0.35), { outline: false }), { p: [0, -0.02 * r, 0.045 * r], s: [0.075 * r * eyeScale, 0.095 * r * eyeScale, 0.035 * r], parent: eg });
+      // 5. Velvet deep pupil
+      mesh(G.sphere, flat('#151014'), { p: [0, -0.02 * r, 0.052 * r], s: [0.055 * r * eyeScale, 0.072 * r * eyeScale, 0.03 * r], parent: eg });
+      // 6. Dual corneal specular reflections (Pixar sparkle)
+      mesh(G.sphere, flat('#ffffff'), { p: [sx * 0.038 * r, 0.045 * r, 0.07 * r], s: 0.032 * r * eyeScale, parent: eg });
+      mesh(G.sphere, flat('#ffffff', { opacity: 0.65 }), { p: [-sx * 0.028 * r, -0.038 * r, 0.066 * r], s: 0.018 * r * eyeScale, parent: eg });
+      // 7. Upper lash line framing
+      mesh(new THREE.TorusGeometry(0.18 * r * eyeScale, 0.018 * r, 6, 16, Math.PI * 0.8), toon('#25181a', { outline: false }), { p: [0, 0.08 * r * eyeScale, 0.052 * r], r: [0, 0, Math.PI * 0.1], parent: eg });
     }
     face.eyes.push(eg);
-    const bg = group(head, [sx * 0.36 * r, (eyeY + 0.33 * eyeScale) * r, 0.84 * r]);
-    mesh(G.box, toon('#3b2a22', { outline: false }), { s: [0.24 * r, 0.05 * r, 0.05 * r], parent: bg });
+    // Tapered stylized arched eyebrows
+    const bg = group(head, [sx * 0.36 * r, (eyeY + 0.33 * eyeScale) * r, 0.86 * r]);
+    const browGeo = new THREE.CylinderGeometry(0.014 * r, 0.032 * r, 0.26 * r, 10);
+    mesh(browGeo, toon('#2c1e18', { outline: false }), { r: [0, 0, sx * (Math.PI / 2 + 0.12)], parent: bg });
     bg.userData.side = sx;
     face.brows.push(bg);
-    if (cheeks && !robot) mesh(G.sphere, flat('#ff8fa0', { opacity: 0.55 }), { p: [sx * 0.55 * r, -0.16 * r, 0.76 * r], s: [0.12 * r, 0.07 * r, 0.03 * r], parent: head });
+    if (cheeks && !robot) mesh(G.sphere, flat('#ff7a92', { opacity: 0.48 }), { p: [sx * 0.48 * r, -0.14 * r, 0.92 * r], s: [0.12 * r, 0.08 * r, 0.035 * r], parent: head });
   }
   const my = beak ? -0.34 * r : -0.3 * r;
-  const mz = 0.9 * r;
+  const mz = 0.97 * r;
   const arc = new THREE.TorusGeometry(0.15 * r, 0.03 * r, 6, 18, Math.PI);
   face.mouths.smile = mesh(arc, toon('#5a1d1d', { outline: false }), { p: [0, my + 0.06 * r, mz], r: [0, 0, Math.PI], parent: head });
   face.mouths.sad = mesh(arc, toon('#5a1d1d', { outline: false }), { p: [0, my - 0.08 * r, mz - 0.02 * r], parent: head });
@@ -114,9 +270,9 @@ function addFace(head, r, { eyeColor = '#2a1d1a', mood = 'happy', cheeks = true,
   const talk = group(head, [0, my, mz]);
   face.talk = {
     group: talk, r,
-    cavity: mesh(G.sphere, toon('#5e1820', { outline: false }), { parent: talk }),
-    teeth: mesh(G.box, toon('#ffffff', { outline: false, emissive: '#6b6b6b' }), { parent: talk }),
-    tongue: mesh(G.sphere, toon('#ff7a8a', { outline: false }), { parent: talk }),
+    cavity: mesh(G.sphere, toon('#480e16', { outline: false }), { parent: talk }),
+    teeth: mesh(G.box, toon('#ffffff', { outline: false, emissive: '#8a8a8a' }), { parent: talk }),
+    tongue: mesh(G.sphere, toon('#ff6b82', { outline: false }), { parent: talk }),
     ring: mesh(new THREE.TorusGeometry(1, 0.22, 8, 24), toon('#8a2c34', { outline: false }), { parent: talk }),
   };
   talk.visible = false;
@@ -176,12 +332,58 @@ function addHorns(head, r, type, accent) {
 
 function addHair(head, r, type, color) {
   if (!type || type === 'none') return;
-  const m = toon(color);
-  if (type === 'beard') { mesh(G.sphere, m, { p: [0, -0.62 * r, 0.62 * r], s: [0.55 * r, 0.5 * r, 0.35 * r], parent: head }); return; }
-  mesh(G.hemi, m, { p: [0, 0.05, -0.04], r: [-0.62, 0, 0], s: r * 1.08, parent: head });
-  if (type === 'long') mesh(G.capsule, m, { p: [0, -r * 0.4, -r * 0.45], s: [r * 1.5, r * 1.2, r * 0.6], parent: head });
-  if (type === 'bun') mesh(G.sphere, m, { p: [0, r * 0.95, -r * 0.3], s: 0.11, parent: head });
-  if (type === 'spiky') for (let k = -2; k <= 2; k++) mesh(G.cone, m, { p: [k * r * 0.22, r * 0.95, -0.02], r: [-0.2, 0, -k * 0.25], s: [0.07, 0.18, 0.07], parent: head });
+  const m = hairToon(color);
+  const mSheen = hairToon(lighter(color, 0.4), { outline: false });
+  if (type === 'beard') {
+    // Styled mustache and contoured jaw beard
+    mesh(G.sphere, m, { p: [0, -0.62 * r, 0.62 * r], s: [0.55 * r, 0.5 * r, 0.35 * r], parent: head });
+    for (const sx of [-1, 1]) {
+      mesh(G.capsule, m, { p: [sx * 0.12 * r, -0.32 * r, 0.88 * r], r: [0, 0, sx * 0.4], s: [0.08 * r, 0.18 * r, 0.08 * r], parent: head });
+    }
+    return;
+  }
+  // Sculpted cranial hair volume: covers top of the head
+  mesh(G.hemi, m, { p: [0, 0.06 * r, -0.04 * r], r: [-0.62, 0, 0], s: r * 1.09, parent: head });
+  // Back cranial dome down to neck so character has lush hair from behind and over-shoulder
+  mesh(G.capsule, m, { p: [0, -r * 0.28, -r * 0.38], s: [r * 1.05, r * 0.72, r * 0.68], parent: head });
+  // Anisotropic specular sheen arc
+  mesh(new THREE.TorusGeometry(r * 0.95, 0.022 * r, 6, 24, Math.PI * 0.7), mSheen, { p: [0, 0.42 * r, -0.05 * r], r: [Math.PI / 2 + 0.35, 0, 0], parent: head });
+
+  if (type === 'long') {
+    // Volumetric flowing tresses behind and in front of shoulders
+    mesh(G.capsule, m, { p: [0, -r * 0.52, -r * 0.45], s: [r * 1.5, r * 1.35, r * 0.7], parent: head });
+    for (const sx of [-1, 1]) {
+      mesh(G.capsule, m, { p: [sx * 0.58 * r, -r * 0.4, 0.15 * r], r: [0.1, 0, -sx * 0.15], s: [0.24 * r, 0.7 * r, 0.22 * r], parent: head });
+    }
+  } else if (type === 'pigtails') {
+    // Twin side pigtails / buns with cute ribbons
+    mesh(G.capsule, m, { p: [0, -r * 0.38, -r * 0.42], s: [r * 1.18, r * 0.85, r * 0.65], parent: head });
+    for (const sx of [-1, 1]) {
+      mesh(new THREE.TorusGeometry(0.12 * r, 0.03 * r, 6, 16), toon('#ff4d6d'), { p: [sx * r * 0.95, -0.02 * r, -0.05 * r], r: [0, Math.PI / 2, 0], parent: head });
+      mesh(G.sphere, m, { p: [sx * r * 1.12, -0.02 * r, -0.05 * r], s: [0.38 * r, 0.45 * r, 0.38 * r], parent: head });
+    }
+    for (const sx of [-1, 1]) {
+      mesh(G.capsule, m, { p: [sx * 0.32 * r, 0.42 * r, 0.48 * r], r: [0.3, 0, -sx * 0.45], s: [0.14 * r, 0.32 * r, 0.12 * r], parent: head });
+    }
+  } else if (type === 'bun') {
+    // Volumetric sculpted bun with styling ring
+    mesh(G.sphere, m, { p: [0, r * 0.96, -r * 0.32], s: [0.28 * r, 0.26 * r, 0.24 * r], parent: head });
+    mesh(new THREE.TorusGeometry(0.18 * r, 0.035 * r, 6, 20), toon('#ff4d6d'), { p: [0, r * 0.84, -r * 0.3], r: [Math.PI / 2, 0, 0], parent: head });
+  } else if (type === 'spiky') {
+    // Clustered anime/Pixar stylized spikes with dynamic angles
+    for (let k = -2; k <= 2; k++) {
+      mesh(G.cone, m, { p: [k * r * 0.23, r * 1.02, -0.02 * r], r: [-0.22, 0, -k * 0.28], s: [0.11 * r, 0.32 * r, 0.11 * r], parent: head });
+    }
+    for (const sx of [-1, 1]) {
+      mesh(G.cone, m, { p: [sx * 0.45 * r, r * 0.75, 0.15 * r], r: [0.15, 0, -sx * 0.45], s: [0.09 * r, 0.24 * r, 0.09 * r], parent: head });
+    }
+  } else {
+    // Short: stylized bangs / side-swept locks
+    for (const sx of [-1, 1]) {
+      mesh(G.capsule, m, { p: [sx * 0.28 * r, 0.45 * r, 0.48 * r], r: [0.35, 0, -sx * 0.5], s: [0.14 * r, 0.32 * r, 0.12 * r], parent: head });
+    }
+    mesh(G.cone, m, { p: [0, 0.98 * r, 0.12 * r], r: [0.2, 0, 0.1], s: [0.12 * r, 0.2 * r, 0.12 * r], parent: head });
+  }
 }
 
 function addAccessories(R, head, r, list, C) {
@@ -271,7 +473,7 @@ function buildDesigned(c) {
   let body = {};
   const makeHead = (parent, y, r, z = 0) => {
     R.head = group(parent, [0, y, z]); R.headR = r;
-    mesh(G.sphere, toon(C.main), { s: [r * headScale[0], r * headScale[1], r * headScale[2]], shadow: true, parent: R.head });
+    mesh(G.head, skinToon(C.main), { s: [r * headScale[0], r * headScale[1], r * headScale[2]], shadow: true, parent: R.head });
     return R.head;
   };
   const finishHead = (r, opts = {}) => {
@@ -354,12 +556,23 @@ function buildDesigned(c) {
     const torsoH = human ? (kid ? 0.42 : 0.6) : 0.62;
     R.hips = group(rig, [0, legLen, 0]);
     const legMat = toon(bird ? '#f2a03a' : human ? darker(d.outfit === 'none' ? C.main : C.outfit, 0.45) : C.main);
-    R.legs = [-1, 1].map(sx => { const g = group(R.hips, [sx * 0.12 * wide, 0, 0]); limb(g, bird ? 0.035 : 0.085, legLen, legMat, 0, 0, 0); mesh(G.sphere, toon(bird ? '#f2a03a' : human ? '#3a2a24' : darker(C.main, 0.25)), { p: [0, -legLen + 0.03, 0.06], s: [0.1, 0.06, 0.15], parent: g }); return g; });
+    R.legs = [-1, 1].map(sx => {
+      const g = group(R.hips, [sx * 0.12 * wide, 0, 0]);
+      limb(g, bird ? 0.035 : 0.085, legLen, legMat, 0, 0, 0);
+      mesh(human ? G.shoe : G.sphere, toon(bird ? '#f2a03a' : human ? '#3a2a24' : darker(C.main, 0.25)), { p: [0, -legLen + 0.03, 0.06], s: human ? [0.1, 0.07, 0.15] : [0.1, 0.06, 0.15], parent: g });
+      if (human) mesh(G.box, toon('#221712', { outline: false }), { p: [0, -legLen - 0.005, 0.06], s: [0.105, 0.015, 0.155], parent: g });
+      return g;
+    });
     R.torso = group(R.hips);
     const bodyColor = human && d.outfit !== 'none' ? C.outfit : C.main;
     if (robot) mesh(G.box, toon(C.main), { p: [0, 0.3, 0], s: [0.56 * wide, 0.56, 0.4], shadow: true, parent: R.torso });
-    else if (human) mesh(G.capsule, toon(bodyColor), { p: [0, torsoH / 2, 0], s: [0.42 * wide, Math.max(0.05, torsoH - 0.3), 0.32 * wide], shadow: true, parent: R.torso });
-    else { mesh(G.sphere, toon(C.main), { p: [0, 0.32, 0], s: [0.34 * wide, 0.4, 0.3 * wide], shadow: true, parent: R.torso }); mesh(G.sphere, toon(C.belly), { p: [0, 0.28, 0.17], s: [0.24 * wide, 0.3, 0.15], parent: R.torso }); }
+    else if (human) {
+      mesh(G.torso, toon(bodyColor), { p: [0, torsoH / 2, 0], s: [0.42 * wide, torsoH, 0.32 * wide], shadow: true, parent: R.torso });
+      mesh(G.cyl, skinToon(C.main), { p: [0, torsoH - 0.02, 0], s: [0.1 * wide, 0.12, 0.1 * wide], parent: R.torso });
+    } else {
+      mesh(G.sphere, toon(C.main), { p: [0, 0.32, 0], s: [0.34 * wide, 0.4, 0.3 * wide], shadow: true, parent: R.torso });
+      mesh(G.sphere, toon(C.belly), { p: [0, 0.28, 0.17], s: [0.24 * wide, 0.3, 0.15], parent: R.torso });
+    }
     // Outfits (person-like bodies and standing animals)
     const o = d.outfit;
     if (o && o !== 'none' && !robot) {
@@ -378,14 +591,21 @@ function buildDesigned(c) {
       const len = human ? (kid ? 0.34 : 0.5) : 0.32;
       if (bird) mesh(G.sphere, toon(C.main), { p: [sx * 0.04, -0.2, -0.02], s: [0.09, 0.26, 0.17], parent: g });
       else if (robot) { mesh(G.cyl, toon('#8aa0b8'), { p: [0, -0.2, 0], s: [0.05, 0.4, 0.05], parent: g }); mesh(G.sphere, toon('#4b5d73'), { p: [0, -0.42, 0], s: 0.08, parent: g }); }
-      else { limb(g, human ? 0.065 : 0.075, len, toon(armColor), 0, 0, 0); if (human) mesh(G.sphere, toon(C.main), { p: [0, -len - 0.03, 0], s: 0.075, parent: g }); }
+      else {
+        limb(g, human ? 0.065 : 0.075, len, toon(armColor), 0, 0, 0);
+        if (human) {
+          const hg = group(g, [0, -len - 0.025, 0]);
+          mesh(G.sphere, skinToon(C.main), { s: [0.068, 0.075, 0.065], parent: hg });
+          mesh(G.capsule, skinToon(C.main), { p: [sx * 0.045, 0.015, 0.025], r: [0.35, 0, sx * 0.55], s: [0.04, 0.06, 0.04], parent: hg });
+        }
+      }
       g.userData.side = sx; g.userData.len = len; return g;
     });
     const r = human ? (kid ? 0.27 : 0.23) : robot ? 0.28 : bird ? 0.3 : 0.33;
     const hy = human ? torsoH + r * 0.95 : robot ? 0.58 + 0.26 : bird ? 0.7 : 0.78 + r * 0.6;
     if (robot) { R.head = group(R.torso, [0, hy, 0]); R.headR = r; mesh(G.box, toon(C.main), { s: [0.6, 0.48, 0.46], shadow: true, parent: R.head }); R.face = addFace(R.head, 0.28, { robot: true, cheeks: false, eyeY: 0.15 }); addHorns(R.head, r, d.horns === 'none' || !d.horns ? 'antenna' : d.horns, C.accent); }
     else { makeHead(R.torso, hy, r); finishHead(r, { eyeY: bird ? 0.12 : human ? 0.1 : 0.18 }); }
-    if (human) for (const sx of [-1, 1]) mesh(G.sphere, toon(C.main), { p: [sx * r * 0.98, 0, 0], s: [0.06, 0.09, 0.05], parent: R.head });
+    if (human) for (const sx of [-1, 1]) mesh(G.sphere, skinToon(C.main), { p: [sx * r * 0.98, 0, 0], s: [0.06, 0.09, 0.05], parent: R.head });
     R.neckY = human ? torsoH : 0.62;
     body = { tail: [0, 0.2, -0.28], fanY: 0.5, shell: [0, 0.2, -0.12], wingY: human ? torsoH * 0.8 : 0.5, spike: (k) => [0, 0.75 - k * 0.11, -0.3], stripe: (k) => [0, 0.12 + k * 0.11, 0.2], stripeSize: [0.5 * wide, 0.035, 0.32], spot: (k) => [((k * 37) % 7 - 3) * 0.07, 0.15 + ((k * 53) % 5) * 0.09, 0.27], finY: 0.4 };
   }
@@ -416,27 +636,41 @@ function buildCharacter(c, kinds) {
     const skin = SKIN[c.skin] || SKIN.medium;
     const outfit = main, hair = c.hair || info.hair || '#2b1a12';
     const female = info.gender === 'f';
+    const skinMat = skinToon(skin);
     R.hips = group(rig, [0, legLen, 0]);
-    R.legs = [-1, 1].map(sx => { const g = group(R.hips, [sx * 0.1 * w, 0, 0]); limb(g, 0.085, legLen, toon(old ? '#5c5f6e' : '#3d4a7a'), 0, 0, 0); mesh(G.sphere, toon('#3a2a24'), { p: [0, -legLen + 0.02, 0.06], s: [0.1, 0.07, 0.15], shadow: true, parent: g }); return g; });
+    R.legs = [-1, 1].map(sx => {
+      const g = group(R.hips, [sx * 0.1 * w, 0, 0]);
+      limb(g, 0.085, legLen, toon(old ? '#5c5f6e' : '#3d4a7a'), 0, 0, 0);
+      mesh(G.shoe, toon('#3a2a24'), { p: [0, -legLen + 0.02, 0.06], s: [0.1, 0.07, 0.15], shadow: true, parent: g });
+      mesh(G.box, toon('#221712', { outline: false }), { p: [0, -legLen - 0.005, 0.06], s: [0.105, 0.015, 0.155], parent: g });
+      return g;
+    });
     R.torso = group(R.hips, [0, 0, 0]);
-    mesh(G.capsule, toon(outfit), { p: [0, torsoH / 2, 0], s: [0.42 * w, Math.max(0.05, torsoH - 0.3), 0.32], shadow: true, parent: R.torso });
+    mesh(female ? G.torsoFemale : G.torso, toon(outfit), { p: [0, torsoH / 2, 0], s: [0.42 * w, torsoH, 0.32], shadow: true, parent: R.torso });
+    mesh(G.cyl, skinMat, { p: [0, torsoH - 0.02, 0], s: [0.1 * w, 0.12, 0.1 * w], parent: R.torso });
     if (female) mesh(G.cyl, toon(outfit), { p: [0, 0.06, 0], s: [0.3 * w, 0.34, 0.26], shadow: true, parent: R.torso }).geometry = new THREE.CylinderGeometry(0.62, 1, 1, 18);
-    R.arms = [-1, 1].map(sx => { const g = group(R.torso, [sx * (0.23 * w + 0.03), torsoH - 0.08, 0]); limb(g, 0.065, kid ? 0.34 : 0.52, toon(outfit), 0, 0, 0); mesh(G.sphere, toon(skin), { p: [0, kid ? -0.36 : -0.55, 0], s: 0.075, shadow: true, parent: g }); g.userData.side = sx; return g; });
+    R.arms = [-1, 1].map(sx => {
+      const g = group(R.torso, [sx * (0.23 * w + 0.03), torsoH - 0.08, 0]);
+      const armLen = kid ? 0.34 : 0.52;
+      limb(g, 0.065, armLen, toon(outfit), 0, 0, 0);
+      const hg = group(g, [0, -armLen - 0.025, 0]);
+      mesh(G.sphere, skinMat, { s: [0.068, 0.075, 0.065], shadow: true, parent: hg });
+      mesh(G.capsule, skinMat, { p: [sx * 0.045, 0.015, 0.025], r: [0.35, 0, sx * 0.55], s: [0.04, 0.06, 0.04], parent: hg });
+      g.userData.side = sx; return g;
+    });
     headY = torsoH + headR * 0.95;
     R.head = group(R.torso, [0, headY, 0]);
-    mesh(G.sphere, toon(skin), { s: headR, shadow: true, parent: R.head });
-    for (const sx of [-1, 1]) mesh(G.sphere, toon(skin), { p: [sx * headR * 0.98, 0, 0], s: [0.06, 0.09, 0.05], parent: R.head });
+    mesh(female ? G.headFemale : G.head, skinMat, { s: headR, shadow: true, parent: R.head });
+    for (const sx of [-1, 1]) mesh(G.sphere, skinMat, { p: [sx * headR * 0.96, 0, -0.02 * headR], s: [0.06, 0.09, 0.05], parent: R.head });
     if (kind === 'grandpa') {
-      for (const sx of [-1, 1]) mesh(G.sphere, toon(hair), { p: [sx * headR * 0.85, 0.05, -0.05], s: [0.09, 0.11, 0.13], parent: R.head });
-      mesh(G.capsule, toon(hair), { p: [0, -0.1, headR * 0.92], r: [0, 0, Math.PI / 2], s: [0.07, 0.12, 0.06], parent: R.head });
+      addHair(R.head, headR, 'beard', hair);
+      for (const sx of [-1, 1]) mesh(G.sphere, hairToon(hair), { p: [sx * headR * 0.85, 0.05, -0.05], s: [0.09, 0.11, 0.13], parent: R.head });
+    } else if (kind === 'grandma') {
+      addHair(R.head, headR, 'bun', hair);
+    } else if (female) {
+      addHair(R.head, headR, kid ? 'pigtails' : 'long', hair);
     } else {
-      // Hair cap tilted back so it frames the face instead of covering the eyes.
-      mesh(G.hemi, toon(hair), { p: [0, 0.05, -0.04], r: [-0.62, 0, 0], s: headR * 1.08, parent: R.head });
-      if (female) {
-        if (kind === 'grandma') mesh(G.sphere, toon(hair), { p: [0, headR * 0.95, -headR * 0.3], s: 0.11, parent: R.head });
-        else mesh(G.capsule, toon(hair), { p: [0, -headR * 0.4, -headR * 0.45], s: [headR * 1.5, headR * 1.2, headR * 0.6], parent: R.head });
-        if (kid) for (const sx of [-1, 1]) mesh(G.sphere, toon(hair), { p: [sx * headR * 1.05, -0.02, -0.05], s: 0.08, parent: R.head });
-      }
+      addHair(R.head, headR, kid ? 'spiky' : 'short', hair);
     }
     if (old) {
       for (const sx of [-1, 1]) mesh(new THREE.TorusGeometry(0.075, 0.012, 6, 18), toon('#3a3030', { outline: false }), { p: [sx * 0.36 * headR, 0.1 * headR, headR * 0.98], parent: R.head });
@@ -758,21 +992,45 @@ function poseCharacter(R, c, t, seed, talking, mood, mouth = null, look = null) 
   const arms = R.arms || [], legs = R.legs || [];
   // Rest pose
   R.rig.position.set(0, 0, 0); R.rig.rotation.set(0, 0, 0);
-  if (R.torso) { R.torso.rotation.set(0, 0, 0); R.torso.scale.set(1, 1 + 0.018 * w(2.2), 1); }
+  // Organic breathing cycle: gentle chest expansion & rhythm
+  const breath = Math.sin(t * 1.8 + seed);
+  if (R.torso) {
+    R.torso.rotation.set(0, 0, 0);
+    R.torso.scale.set(1 + 0.012 * breath, 1 + 0.016 * breath, 1 + 0.012 * breath);
+  }
   if (R.head) R.head.rotation.set(0, 0, 0);
   for (const a of arms) { a.rotation.set(0, 0, a.userData.side * 0.14); }
   for (const l of legs) l.rotation.set(0, 0, 0);
-  if (R.hips && R.plan !== 'float') R.hips.position.y = R.hips.userData.y0 ?? (R.hips.userData.y0 = R.hips.position.y);
+  if (R.hips && R.plan !== 'float') {
+    R.hips.position.y = R.hips.userData.y0 ?? (R.hips.userData.y0 = R.hips.position.y);
+    R.hips.rotation.set(0, 0, 0);
+  }
   const A = arms.find(a => a.userData.side > 0), B = arms.find(a => a.userData.side < 0);
   const pose = c.walking ? 'walk' : c.pose;
 
   switch (pose) {
     case 'walk': {
       const p = t * 7.5;
-      legs.forEach((l, k) => { l.rotation.x = Math.sin(p + (l.userData.phase ?? k * Math.PI)) * (R.plan === 'quad' ? 0.5 : 0.65); });
-      arms.forEach((a, k) => { a.rotation.x = -Math.sin(p + k * Math.PI) * 0.55; });
-      R.rig.position.y = Math.abs(Math.sin(p)) * 0.05;
-      if (R.torso) R.torso.rotation.z = Math.sin(p) * 0.04;
+      // 12-principles locomotion: pelvis double-bounce per stride
+      const pelvisBounce = -0.04 * Math.cos(2 * p);
+      R.rig.position.y = pelvisBounce;
+      // Weight shift: hips tilt towards the supporting leg
+      if (R.hips) {
+        R.hips.rotation.z = Math.sin(p) * 0.055;
+        R.hips.rotation.y = Math.sin(p) * 0.065;
+      }
+      // Counter-rotation of ribcage/torso for natural momentum
+      if (R.torso) {
+        R.torso.rotation.y = -Math.sin(p) * 0.075;
+        R.torso.rotation.z = -Math.sin(p) * 0.035;
+      }
+      legs.forEach((l, k) => {
+        l.rotation.x = Math.sin(p + (l.userData.phase ?? k * Math.PI)) * (R.plan === 'quad' ? 0.5 : 0.68);
+      });
+      arms.forEach((a, k) => {
+        a.rotation.x = -Math.sin(p + k * Math.PI) * 0.58;
+        a.rotation.z = a.userData.side * (0.16 + Math.abs(Math.sin(p + k * Math.PI)) * 0.08);
+      });
       break;
     }
     case 'wave':
@@ -813,6 +1071,7 @@ function poseCharacter(R, c, t, seed, talking, mood, mouth = null, look = null) 
       break;
     default:
       if (R.torso) R.torso.rotation.z = Math.sin(t * 1.1 + seed) * 0.025;
+      if (R.head) R.head.rotation.x = 0.012 * breath;
   }
   // Talking: small gestures and nods.
   if (talking && (pose === 'idle' || pose === 'talk' || pose === 'sit')) {
@@ -826,9 +1085,13 @@ function poseCharacter(R, c, t, seed, talking, mood, mouth = null, look = null) 
     R.head.rotation.x += look.nod;
     R.head.rotation.z += look.tilt;
   }
-  // Ears and tail sway (springy, from t).
-  (R.ears || []).forEach(e => { e.rotation.z = e.userData.side * 0.06 * Math.sin(t * 3 + seed); });
-  if (R.tail) R.tail.rotation.y = Math.sin(t * 4 + seed) * 0.3;
+  // Secondary spring inertia on ears and tail (phase lag behind main motion).
+  const springLag = Math.sin(t * 3.8 + seed - 0.35);
+  (R.ears || []).forEach(e => { e.rotation.z = e.userData.side * 0.075 * springLag; });
+  if (R.tail) {
+    R.tail.rotation.y = Math.sin(t * 4 + seed) * 0.32 + 0.06 * springLag;
+    R.tail.rotation.z = 0.04 * Math.sin(t * 2.2 + seed);
+  }
   if (R.rays) R.rays.rotation.z = t * 0.4;
   // Designed characters: four-legged waves lift a front paw; snakes slither; wings flap; peacock fans shimmer; ghosts sway.
   if (R.plan === 'quad' && (pose === 'wave' || pose === 'point') && legs[0]) legs[0].rotation.x = -1.1 - 0.25 * Math.sin(t * 8 + seed);
@@ -839,14 +1102,26 @@ function poseCharacter(R, c, t, seed, talking, mood, mouth = null, look = null) 
   if (R.antenna) R.antenna.material.emissiveIntensity = 0.6 + 0.4 * Math.sin(t * 6);
   if (R.plan === 'float') { R.hips.position.y = 1.35 + Math.sin(t * 2 + seed) * 0.1; R.hips.rotation.z = Math.sin(t * 1.3 + seed) * 0.08; }
 
-  // Face: mood, blink, talking mouth.
+  // Face: mood, organic blink with natural double-blinking, talking mouth.
   const f = MOOD_FACE[mood] || MOOD_FACE.happy;
   const F = R.face;
   if (!F) return;
   F.brows.forEach(b => { b.rotation.z = -b.userData.side * f.brow; b.position.y = (b.userData.y0 ?? (b.userData.y0 = b.position.y)) + (f.lift || 0) * (R.headR || 0.3) * 3; });
-  const period = 2.8 + (seed % 1.9);
-  const blink = ((t + seed * 1.37) % period + period) % period < 0.13 && mood !== 'surprised';
-  F.eyes.forEach(e => { e.scale.set(1, blink ? 0.1 : f.eye, 1); });
+  const period = 3.2 + (seed % 1.7);
+  const blinkCycle = ((t + seed * 1.37) % period + period) % period;
+  const isDouble = (Math.round(seed * 17) % 4) === 0;
+  const blink = (blinkCycle < 0.12 || (isDouble && blinkCycle > 0.22 && blinkCycle < 0.32)) && mood !== 'surprised';
+  F.eyes.forEach(e => { e.scale.set(1, blink ? 0.08 : f.eye, 1); });
+  // Ocular micro-saccades for lively gaze
+  const saccadeTime = t * 0.7 + seed;
+  const saccadeX = (Math.sin(saccadeTime * 3.1) > 0.75 ? 0.012 : Math.sin(saccadeTime * 1.7) < -0.75 ? -0.012 : 0) * (R.headR || 0.3);
+  const saccadeY = (Math.cos(saccadeTime * 2.3) > 0.82 ? 0.008 : 0) * (R.headR || 0.3);
+  F.eyes.forEach(e => {
+    if (e.children && e.children[1]) {
+      e.children[1].position.x = saccadeX;
+      e.children[1].position.y = -0.018 * (R.headR || 0.3) + saccadeY;
+    }
+  });
   if (talking && mouth && F.talk) {
     // Lip-sync from the line's mouth-shape track.
     const closed = mouth.closed && mouth.h < 0.03;
@@ -907,6 +1182,45 @@ function flowers(parent, r, n, area, colors) {
   return inst;
 }
 
+function grassTufts(parent, r, n, area, colors) {
+  const inst = new THREE.InstancedMesh(G.cone, toon('#439e3b', { outline: false }), n);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  const euler = new THREE.Euler();
+  for (let k = 0; k < n; k++) {
+    let x, z;
+    do { x = (r() - 0.5) * area[0]; z = Math.min(0.8, area[1] + r() * area[2]); } while (Math.abs(x) < STAGE_W / 2 + 0.2 && z > -1.2);
+    v.set(x, 0.1, z);
+    euler.set((r() - 0.5) * 0.25, r() * Math.PI * 2, (r() - 0.5) * 0.25);
+    q.setFromEuler(euler);
+    sc.set(0.045 + r() * 0.035, 0.2 + r() * 0.15, 0.045 + r() * 0.035);
+    m.compose(v, q, sc);
+    inst.setMatrixAt(k, m);
+    inst.setColorAt(k, col(colors[Math.floor(r() * colors.length)]));
+  }
+  parent.add(inst);
+  return inst;
+}
+
+function addForegroundFraming(parent, bg) {
+  const fg = group(parent);
+  if (['forest', 'meadow', 'mountains', 'village'].includes(bg)) {
+    for (const sx of [-1, 1]) {
+      const vine = group(fg, [sx * (STAGE_W * 0.55 + 0.4), 3.6, 2.8]);
+      mesh(G.sphere, toon(bg === 'forest' ? '#1e4d28' : '#336a28', { outline: false }), { p: [0, 0, 0], s: [0.65, 0.45, 0.45], parent: vine });
+      mesh(G.sphere, toon(bg === 'forest' ? '#275e33' : '#438435', { outline: false }), { p: [-sx * 0.2, -0.22, 0.1], s: [0.45, 0.35, 0.35], parent: vine });
+      const bush = group(fg, [sx * (STAGE_W * 0.52 + 0.5), 0, 2.5]);
+      mesh(G.sphere, toon('#2e632b', { outline: false }), { p: [0, 0.2, 0], s: [0.38, 0.35, 0.3], parent: bush });
+      mesh(G.sphere, toon('#44883d', { outline: false }), { p: [-sx * 0.1, 0.32, 0.05], s: [0.28, 0.25, 0.24], parent: bush });
+    }
+  } else if (bg === 'beach') {
+    const frond = group(fg, [-STAGE_W * 0.55, 3.8, 2.8]);
+    for (let s = 0; s < 5; s++) {
+      mesh(G.sphere, toon(['#2e8b57', '#3cb371'][s % 2], { outline: false }), { p: [s * 0.22, -s * 0.12, 0], s: [0.35, 0.14, 0.18], parent: frond });
+    }
+  }
+  return fg;
+}
+
 /** Build the place for a scene. Returns { group, update(t), lights, fog }. */
 function buildWorld(spec, r) {
   const bg = spec.background || 'meadow';
@@ -945,6 +1259,7 @@ function buildWorld(spec, r) {
       for (let k = 0; k < 14; k++) tree(root, (r() - 0.5) * 34, -8 - r() * 16, 1.4 + r(), r, { pine: true, color: '#2b6b35' });
       for (let k = 0; k < 6; k++) { const m = group(root, [(r() - 0.5) * 14, 0, 1 + r() * 2]); if (Math.abs(m.position.x) < STAGE_W / 2) m.position.x += Math.sign(m.position.x || 1) * STAGE_W / 2; mesh(G.cyl, toon('#f3ead8'), { p: [0, 0.08, 0], s: [0.04, 0.16, 0.04], parent: m }); mesh(G.hemi, toon('#e3483c'), { p: [0, 0.14, 0], s: 0.12, parent: m }); }
       mesh(new THREE.PlaneGeometry(2.2, 40), toon('#a07a4c', { outline: false }), { p: [0, 0.01, -14], r: [-Math.PI / 2, 0, 0], parent: root }).receiveShadow = true;
+      grassTufts(root, r, 100, [34, -8, 14], ['#2f7d3b', '#3f8f45', '#24592c']);
       fog = new THREE.Fog(time === 'night' ? '#1c2f3a' : '#9fc7a0', 18, 70);
       break;
     case 'mountains':
@@ -977,6 +1292,7 @@ function buildWorld(spec, r) {
       { const wl = group(root, [STAGE_W / 2 + 1.2, 0, -1]); mesh(G.cyl, toon('#9e9e9e'), { p: [0, 0.4, 0], s: [0.7, 0.8, 0.7], parent: wl }); mesh(G.box, toon('#7a5230'), { p: [0, 1.6, 0], s: [1.6, 0.12, 0.3], parent: wl }); for (const sx of [-1, 1]) mesh(G.cyl, toon('#7a5230'), { p: [sx * 0.7, 1, 0], s: [0.06, 1.2, 0.06], parent: wl }); }
       side(10, 16, -14, 0, (x, z) => tree(root, x, z, 1.1 + r(), r));
       flowers(root, r, 90, [40, -6, 9], ['#ffd23f', '#ff6f91', '#ffffff']);
+      grassTufts(root, r, 90, [40, -6, 9], ['#439e3b', '#5bb852', '#368230']);
       break;
     case 'city': {
       skyStuff(3); ground('#9aa5ad');
@@ -1124,6 +1440,7 @@ function buildWorld(spec, r) {
       side(12, 16, -12, 1, (x, z) => tree(root, x, z, 1 + r() * 1.1, r, { color: ['#4caf50', '#5dbb63', '#3f9a4a'][Math.floor(r() * 3)] }));
       for (let k = 0; k < 8; k++) tree(root, (r() - 0.5) * 30, -12 - r() * 10, 1.2 + r(), r);
       flowers(root, r, 160, [36, -8, 12], ['#ff6f91', '#ffd23f', '#ffffff', '#c77dff']);
+      grassTufts(root, r, 130, [36, -8, 12], ['#439e3b', '#5bb852', '#368230', '#63c457']);
       for (let k = 0; k < 6; k++) { const x = (r() - 0.5) * 24; mesh(G.rock, toon('#9e9e9e'), { p: [Math.abs(x) < STAGE_W / 2 ? x + Math.sign(x || 1) * STAGE_W / 2 : x, 0.15, -2 - r() * 6], s: 0.2 + r() * 0.3, parent: root }); }
       if (time === 'night') {
         const ff = []; for (let k = 0; k < 30; k++) ff.push([mesh(G.sphere, flat('#fff59d'), { s: 0.05, parent: root }), r(), (r() - 0.5) * 20, -r() * 8]);
@@ -1190,17 +1507,59 @@ function buildWorld(spec, r) {
     root.add(pts);
   }
 
-  // Lights
+  // Foreground Framing
+  addForegroundFraming(root, bg);
+
+  // Floating Sunbeam Dust Motes (Life & Atmosphere)
+  if (time !== 'night' || indoor) {
+    const nDust = indoor ? 70 : 50;
+    const dustPos = new Float32Array(nDust * 3);
+    const dustSeeds = Array.from({ length: nDust }, () => [r(), r(), r(), r()]);
+    const dustGeo = new THREE.BufferGeometry();
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+    const dustMat = new THREE.PointsMaterial({
+      color: time === 'sunset' ? '#ffd8a8' : '#fff8d6',
+      size: 3.2,
+      sizeAttenuation: false,
+      transparent: true,
+      opacity: 0.45,
+      fog: false,
+    });
+    dustMat.userData.outlineParameters = { visible: false };
+    const dustPts = new THREE.Points(dustGeo, dustMat);
+    dustPts.frustumCulled = false;
+    root.add(dustPts);
+    updates.push((t) => {
+      dustSeeds.forEach(([a, b, c, d], di) => {
+        const x = (a - 0.5) * (STAGE_W + 6) + Math.sin(t * 0.4 + c * 8) * 0.3;
+        const y = 0.5 + ((b + t * 0.04) % 1) * 4.5;
+        const z = 2.5 - d * 8 + Math.cos(t * 0.3 + a * 6) * 0.2;
+        dustPos[di * 3] = x; dustPos[di * 3 + 1] = y; dustPos[di * 3 + 2] = z;
+      });
+      dustGeo.attributes.position.needsUpdate = true;
+      dustMat.opacity = 0.35 + 0.15 * Math.sin(t * 1.5);
+    });
+  }
+
+  // Cinematic 3-Point Studio Lighting
   const lights = group(root);
-  lights.add(new THREE.HemisphereLight(col(hemi[0]), col(hemi[1]), hemi[2]));
-  const k = new THREE.DirectionalLight(col(key[0]), key[1]);
-  k.position.set(-6, 10, 8); k.castShadow = true;
-  k.shadow.mapSize.set(1024, 1024);
+  lights.add(new THREE.HemisphereLight(col(hemi[0]), col(hemi[1]), hemi[2] * 1.05));
+  const k = new THREE.DirectionalLight(col(key[0]), key[1] * 1.15);
+  k.position.set(-6, 11, 8); k.castShadow = true;
+  k.shadow.mapSize.set(2048, 2048);
   Object.assign(k.shadow.camera, { left: -10, right: 10, top: 10, bottom: -4, near: 1, far: 40 });
-  k.shadow.bias = -0.0006;
+  k.shadow.bias = -0.0004;
+  k.shadow.radius = 2.4;
   lights.add(k); lights.add(k.target);
-  const rim = new THREE.DirectionalLight(col(time === 'night' ? '#7f9cff' : '#fff0d6'), 0.7);
-  rim.position.set(5, 4, -8); lights.add(rim);
+  // Fill bounce light to soften harsh shadows
+  const fill = new THREE.DirectionalLight(col(time === 'night' ? '#4e5d84' : '#ffe8d2'), key[1] * 0.35);
+  fill.position.set(7, 4, 6); lights.add(fill);
+  // Fresnel Rim Light: silhouette separation
+  const rim = new THREE.DirectionalLight(col(time === 'night' ? '#8aaeff' : '#fff4db'), time === 'night' ? 1.4 : 1.15);
+  rim.position.set(6, 6, -10); lights.add(rim);
+  // Upward ground ambient bounce
+  const bounce = new THREE.DirectionalLight(col(hemi[1]), hemi[2] * 0.25);
+  bounce.position.set(0, -6, 2); lights.add(bounce);
   return { root, update: (t) => updates.forEach(u => u(t)), fog, indoor };
 }
 
@@ -1211,10 +1570,11 @@ const LOWRES = new URLSearchParams(location.search).has('lowres');
 renderer.setPixelRatio(LOWRES ? 2 / 3 : 1);
 renderer.setSize(W, H, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
 renderer.shadowMap.enabled = !LOWRES;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-const effect = new OutlineEffect(renderer, { defaultThickness: 0.0045, defaultColor: [0.07, 0.05, 0.06] });
+const effect = new OutlineEffect(renderer, { defaultThickness: 0.0038, defaultColor: [0.06, 0.04, 0.05] });
 const gl = renderer.getContext();
 const px = new Uint8Array(4);
 
@@ -1381,10 +1741,10 @@ function solveShot(S, shot, t, k) {
   const hr = info.length ? Math.max(...info.map(i => i.hr)) : 0.3;
   const tall = info.length ? Math.max(...info.map(i => i.top - i.feet)) : 1.6;
   let pos = new THREE.Vector3(), look = new THREE.Vector3();
-  // Frame of height hf with the top of the head just under the frame top (headroom), eyes near the upper third.
+  // Frame of height hf with the top of the head well under the frame top (headroom for speech bubbles), eyes near the upper third.
   const frame = (hf, wf, { lead = 0, high = 0.15, onHead = false } = {}) => {
     const d = fitDist(hf, wf);
-    const cy = top + hf * 0.1 - hf / 2;
+    const cy = top + hf * 0.25 - hf / 2;
     // Tight shots aim at the head itself (on four-legged characters it is well forward of the body).
     const fx = onHead && info.length === 1 ? info[0].head.x : cx;
     const fz = onHead && info.length === 1 ? info[0].head.z : 0;
@@ -1401,7 +1761,7 @@ function solveShot(S, shot, t, k) {
       break;
     }
     case 'full': frame(tall * 1.35, span + tall * 0.9, { lead: lead * tall }); break;
-    case 'medium': case 'two-shot': frame(Math.max(hr * 9, tall * 0.62), span + hr * 7, { lead: lead * 1.2 }); break;
+    case 'medium': case 'two-shot': frame(Math.max(hr * 9, tall * 1.05), span + hr * 7, { lead: lead * 1.2 }); break;
     case 'medium-close': frame(hr * 6.6, hr * 6.6 * ASPECT * 0.6, { lead: lead * 1.0, high: 0.05, onHead: true }); break;
     case 'close': frame(hr * 4.6, hr * 4.6 * ASPECT * 0.5, { lead: lead * 0.7, high: 0.02, onHead: true }); break;
     case 'extreme-close': frame(hr * 2.8, hr * 2.8, { lead: 0, high: 0, onHead: true }); break;
