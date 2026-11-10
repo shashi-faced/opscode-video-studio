@@ -415,6 +415,47 @@ The time per second is high only because the clips are 5–10 s long. Language d
 | Tests | 104 pass (12 new in `test/captions.test.mjs`) |
 | Real render (Hindi Diwali, 9:16) | `.srt` and `.vtt` written, 13 cues each, both parse in ffmpeg; the `.srt` embeds as a subtitle track |
 
+## v0.13.0-dev: Whisper captions, Phase 4 burn captions into any video (2026-11-10)
+
+Method:
+1. Caption chunks are turned into distinct states.
+2. Chrome draws each state once as a transparent PNG with the studio's caption CSS.
+3. One ffmpeg pass lays them over the video: a concat list with durations, plus `overlay`.
+4. The sound is copied.
+
+Compared with ffmpeg's ASS subtitles (libass) on the same cues. `eval/captions/burn-bench.mjs` uses a test picture with a test clip's voice looped.
+
+| Video | Whisper listening | Our burn | ASS burn | States / stills drawn |
+|---|---|---|---|---|
+| 30 s, 1080×1920, Hindi karaoke (script spelling, heard timing) | 22.1 s | 17.7 s | 12.8 s | 80 / 49 |
+| 60 s, 1920×1080, English pop | 28.7 s | 35.7 s | 28.3 s | 422 / 70 |
+| 5 min, 1920×1080, English pop (764 words) | 154.9 s (0.52× real time) | 160.3 s | 120.8 s | 2,123 / 102 |
+| 27 s Diwali reel (rendered earlier), English pop | 8.5 s | 13.2 s | — | 140 / 135 |
+
+Findings:
+- **Hindi:** ours is correct. ASS draws "परविार दविाली" (ि misplaced), because this ffmpeg has no HarfBuzz.
+- **Audio:** the MD5 is identical to the input.
+- **Looks:** the pop and karaoke captions look like rendered videos: the same yellow lit word, outline and safe zone.
+- **Not yet measured:** the looped test voice repeats, so few stills were drawn. A real talk needs about one still per state, about 2,000 per 5 minutes. Phase 8 measures a real 10-minute talk.
+- **A 10-minute run** of this benchmark was stopped when the session ended, and its numbers are lost. The 5-minute run replaces it.
+
+| Test | Result |
+|---|---|
+| Tests | 111 pass (7 new in `test/burn.test.mjs`: states, rotation, sound unchanged, caption only while spoken) |
+
+## v0.13.0-dev: Whisper captions, Phase 5 `video_captions` tool (2026-11-10)
+
+`video_captions` captions any video: it listens, groups the words, writes `.srt`, `.vtt` and `.words.json`, and burns the captions in. CLI: `opscode-video captions in.mp4`.
+
+| Check | Result |
+|---|---|
+| 27 s reel, 1080×1920, `--platform insta-reel` | 50 words, 21 pop captions, English detected; 28.5 s in total (listening, then 19.4 s of drawing and encoding) |
+| Hindi 9:16 with `--script` | 87% of the script heard as written, the rest timed from neighbours; karaoke in Devanagari |
+| Re-burn from an edited `.words.json`, as `line` | corrected word shown; 15.4 s (no listening) |
+| Video with no sound / music only / no model | clear `ok: false` replies with the next step (music: 4 invented words removed, nothing written) |
+| Bug fixed | "30%" was heard as "30" "%" and the "%" was dropped; symbols now join their word |
+| Tests | 117 pass (6 new in `test/captions-tool.test.mjs`) |
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.

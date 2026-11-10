@@ -52,6 +52,19 @@ Set `"platform"` to where the video will be posted. It sets the frame size, keep
 
 `captions` is `true`, `false`, or `{ "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top" }`. Captions are timed to the spoken words using the voice's word timings: `pop` shows 1–3 big words at a time (reels), `karaoke` lights up the word being spoken. Examples: [insta-reel.json](examples/insta-reel.json), [youtube-ad.json](examples/youtube-ad.json). Every render also writes `<title>.srt` and `<title>.vtt` next to the MP4, with the same caption chunks. Upload them with the video; the `.vtt` carries per-word times. Lines are at most 42 characters, or 32 on 9:16 and 4:5 frames, with at most 2 lines per cue.
 
+## Captions on any video
+
+`video_captions` (CLI: `captions`) adds word-by-word captions to a video that was not made here: recorded, uploaded, or cut with the editing tools.
+
+1. Whisper hears every word and when it is said, on this computer (no upload, no API key). The language is detected automatically: English, Hindi and more.
+2. Invented words over music or silence ("Thank you for watching!") are removed.
+3. The captions are drawn with the same styles as rendered videos (`pop`, `karaoke`, `line`), kept clear of the platform's buttons, and burned into `<name>-captions.mp4`. The sound is copied unchanged.
+4. It also writes `.srt` and `.vtt` subtitles and an editable `.words.json`.
+
+- **Exact spelling:** pass `script` (text or a `.txt`). Captions then use your words (names, brands, Hindi in Devanagari) with the heard timing.
+- **Fix a word:** edit its `text` in `.words.json` and run again with `words`: it burns again without listening.
+- **One-time setup:** `video_assets install whisper-small` (240 MB model, plus a 100 MB speech engine). `whisper-base` (76 MB) is a faster English-only option.
+
 ## 3D look
 
 Add `"look": "3d"` to a story to draw its story and dialogue scenes as a 3D cartoon:
@@ -125,6 +138,7 @@ A plain storyboard also works with `film-render` (one sequence, one shot per sce
 | `reframe <in.mp4> [out.mp4] --format 9:16\|16:9\|1:1\|4:5 [--style blur_pad\|crop\|fit]` | Change the shape (16:9 to reel, square, feed) |
 | `inspect <in.mp4>` | Length, size, fps, codecs, bitrate |
 | `gif <in.mp4> [out.gif] [--start 0] [--duration 5] [--fps 15] [--width 480]` | Short GIF with an optimised palette |
+| `captions <in.mp4> [out.mp4] [--style pop\|karaoke\|line] [--language auto\|en\|hi] [--script words.txt] [--words edited.words.json] [--platform insta-reel] [--no-burn]` | Word-by-word captions on any video (Whisper, on this computer) |
 | `tool <name> --b64 <json>` | Bridge used by the Opscode app |
 | `agent-manifest` | Manifest + tool definitions read by the app on install |
 

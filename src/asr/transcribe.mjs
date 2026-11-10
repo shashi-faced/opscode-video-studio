@@ -12,7 +12,7 @@ import { MODEL_DIR, QUALITY, modelInfo, modelReady } from './models.mjs';
 import { measureShift, guard, tidy, applyShift, segmentsOf } from './clean.mjs';
 
 export const ENGINE = 'transformers';
-const CLEAN_VERSION = 1;                 // bump when the clean-up rules change (old cache entries are ignored)
+const CLEAN_VERSION = 2;                 // bump when the clean-up rules change (old cache entries are ignored)
 export const CACHE_DIR = path.join(HOME_DIR, 'cache', 'asr');
 const WINDOW = 120, OVERLAP = 5;         // long audio is heard in 2-minute windows (progress, memory)
 

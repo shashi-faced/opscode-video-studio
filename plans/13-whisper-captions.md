@@ -277,7 +277,34 @@ Original scope:
   - SRT and VTT validate (timestamps increase, no overlaps, UTF-8);
   - the Devanagari title case (file named `video.mp4`) gets a proper name.
 
-### Phase 4: Burn-in onto any MP4 (~2 days)
+### Phase 4: Burn-in onto any MP4 ✅ (2026-11-10, branch `version13`)
+Built:
+- `src/captions/page.mjs`: a transparent caption page.
+  - It uses the renderer's own `TEMPLATE_CSS`, theme fonts and platform safe zones.
+  - `--u` is 1% of the shorter side, and the frame class comes from the shape, so any video size works.
+  - `captionStates()` lists the distinct things to draw: a blank between captions, each lit word, and the pop growth steps.
+- `src/captions/build.mjs`: `captionsFromWords` (heard words) and `captionsFromScript` (the user's spelling with heard timing), plus `maxCharsFor`.
+- `src/captions/burn.mjs`:
+  - `probeVideo` decodes one frame, so the size is read after rotation (a phone video shot upright stays upright).
+  - `burnCaptions` draws each distinct state once in headless Chrome as a transparent PNG, then runs one ffmpeg pass. That pass is a concat list with durations and an `overlay`, and the audio is stream-copied.
+- `test/burn.test.mjs`: 7 tests. 111 of 111 pass.
+- `eval/captions/burn-bench.mjs` compares this with ASS through libass.
+
+Change from the design: the caption CSS was not moved into a separate `captions.css`. The page reuses `TEMPLATE_CSS` directly, which keeps one source with no copy.
+
+Results:
+- **Hindi:** our burn draws Devanagari correctly. ASS breaks the ि sign: "परिवार दिवाली" comes out as "परविार दविाली". So ASS is not used, not even as a fast path for Latin text, because both kinds of text would then look different.
+- **Speed:** ours is 1.26–1.38× slower than ASS (table in `09`), almost all of it in video encoding.
+- **Audio** is bit-identical: the MD5 matches the input.
+
+Still open:
+- The 5-minute benchmark loops one 10 s clip, so only 102 distinct stills were drawn for 2,123 states. Real speech has few repeats: about 2,000 stills per 5 minutes. Phase 8 measures a real 10-minute talk.
+- Listening plus burning took about 1.05× the video's length (5 min → 5.3 min). The Phase 8 target "10 minutes in under 8" is not met yet. Ways to get there:
+  - encode with `-preset veryfast`;
+  - draw only the caption band instead of the full frame;
+  - listen while drawing.
+
+Original scope:
 - `burn.mjs` and `page.mjs`. Reuse the caption CSS from `runtime.js` (move it to a shared `captions.css`), the theme fonts and the platform safe zones.
 - Benchmark against ASS on 60 s and 10 min clips.
 - Tests:
@@ -286,7 +313,38 @@ Original scope:
   - a sampled frame inside a word window shows highlighted pixels at the caption position;
   - a Hindi caption is visually checked once (screenshot in the log).
 
-### Phase 5: `video_captions` tool, docs and agent guide (~1 day)
+### Phase 5: `video_captions` tool, docs and agent guide ✅ (2026-11-10, branch `version13`)
+Built:
+- `src/captions/tool.mjs` (`videoCaptions`):
+  - the style comes from the given value, an alias, the platform, or else the shape (tall → pop, wide → karaoke);
+  - `script` gives the user's spelling with heard timing, and reports how many of its words were heard as written;
+  - `words` re-burns from an edited `.words.json` without listening;
+  - `burn: false` writes the files only;
+  - a preview frame is returned to the chat.
+- `video_captions` is in `TOOL_DEFS`.
+- The CLI has a `captions` command.
+- Manifest: allowed tool, store text and sample prompt. The prompt says when to use the tool and to ask before the 340 MB download.
+- README section "Captions on any video".
+- `test/captions-tool.test.mjs`: 6 tests. 117 of 117 pass.
+
+Changes from the design:
+- **No `captionsDoc` in `docs.mjs`.** `video_templates` is only read before writing a storyboard, which never happens for captions. The guidance went into the tool description and the system prompt, which the agent always has.
+- **No `translate` option yet.** Whisper can translate into English, but the captions would then not match the speech timing word for word. Left for later.
+
+Bug found and fixed on a real reel: Whisper heard "30%" as "30" plus "%". The guard dropped the "%" as an invented word, so the caption read "30 off".
+- `glueSymbols` now joins %, punctuation and closing marks to the word before, and ₹ $ € £ # @ and opening marks to the word after.
+- `CLEAN_VERSION` was bumped to 2, so cached transcripts are heard again.
+
+Checked by hand:
+- **27 s Instagram reel:** 50 words, pop, done in 28.5 s.
+- **Hindi 9:16 with the script:** 87% of the script heard as written; karaoke in Devanagari.
+- **Fix a word** in `.words.json` and re-burn as `line`: 15 s, with no listening.
+- **Failures** give the agent a next step:
+  - no sound;
+  - music only ("No speech was heard", 4 invented words removed);
+  - no model ("ask the user first, 340 MB").
+
+Original scope:
 - Tool, CLI command (`opscode-video captions in.mp4 --style pop`), README section.
 - A short `captionsDoc` in `docs.mjs` (under 1 KB) that tells the agent when to use it: "add subtitles", "word by word captions", "caption my reel".
 - Re-burn from an edited `words.json` without listening again.

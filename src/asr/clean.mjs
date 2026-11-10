@@ -56,6 +56,27 @@ export function segmentsOf(words) {
 }
 
 /**
+ * Whisper sometimes hears a symbol as its own word ("30" "%", "₹" "999"). Join it to the word it belongs
+ * to: %, punctuation and closing marks to the word before; ₹ $ € £ # @ and opening marks to the word after.
+ */
+export function glueSymbols(words) {
+  const out = [];
+  let carry = null;
+  for (const w0 of words) {
+    const w = { ...w0, text: String(w0.text).trim() };
+    if (!w.text) continue;
+    if (!norm(w.text) && /^[%.,!?;:।)\]}"'”’…-]+$/.test(w.text) && out.length && w.start - out.at(-1).end < 0.5) {
+      out.at(-1).text += w.text; out.at(-1).end = Math.max(out.at(-1).end, w.end); continue;
+    }
+    if (!norm(w.text) && /^[₹$€£#@(\[{"'“‘]+$/.test(w.text)) { carry = carry ? { ...carry, text: carry.text + w.text } : w; continue; }
+    if (carry) { if (w.start - carry.end < 0.5) { w.text = carry.text + w.text; w.start = carry.start; } else out.push(carry); carry = null; }
+    out.push(w);
+  }
+  if (carry) out.push(carry);
+  return out;
+}
+
+/**
  * Drop invented words. Returns { words, dropped: [{ text, start, reason }] }.
  * keep: normalised phrases that are really said (from a known script), never dropped as stock phrases.
  */
@@ -63,7 +84,7 @@ export function guard(words, { rms = null, duration = Infinity, keep = new Set()
   const dropped = [];
   const drop = (w, reason) => dropped.push({ text: w.text, start: w.start, reason });
   let out = [];
-  for (const w of words) {
+  for (const w of glueSymbols(words)) {
     if (!norm(w.text)) { drop(w, 'no letters'); continue; }
     if (/^[\s([♪*].*[\])♪*]\s*$/.test(w.text) || /♪/.test(w.text)) { drop(w, 'sound label'); continue; }
     if (!(w.start < duration - 0.02) || w.end <= 0) { drop(w, 'after the end of the audio'); continue; }

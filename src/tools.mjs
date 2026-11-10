@@ -41,6 +41,20 @@ export const TOOL_DEFS = [
   { name: 'video_capture', description: 'Screenshot a web page or local app URL into a PNG for use in a storyboard. Optional crop in pixels.', parameters: { type: 'object', properties: { url: { type: 'string' }, out: { type: 'string', description: 'output .png path' }, width: { type: 'number' }, height: { type: 'number' }, crop: { type: 'string', description: 'x,y,w,h in pixels (optional)' }, waitMs: { type: 'number' } }, required: ['url', 'out'] } },
   { name: 'video_doctor', description: 'Check that Chrome, ffmpeg and voices work. Use install=true to download a missing browser.', parameters: { type: 'object', properties: { install: { type: 'boolean' } }, required: [] } },
 
+  { name: 'video_captions', description: 'Add word-by-word captions to ANY video file (recorded, uploaded, or cut with the editing tools): Whisper hears every word and when it is said, then the captions are burned into a new MP4 and saved as .srt/.vtt subtitles plus an editable .words.json. Works in English, Hindi and other languages (detected automatically). Needs the speech model once (video_assets install whisper-small, 240 MB; ask the user first). Videos made with video_render already have captions; use this for other videos.', parameters: { type: 'object', properties: {
+    input: { type: 'string', description: 'video file to caption' },
+    style: { type: 'string', enum: ['pop', 'karaoke', 'line'], description: 'pop: 1-3 big words at a time (reels, shorts); karaoke: a line with the spoken word lit up; line: classic subtitles. Default: from platform, else pop for vertical and karaoke for wide videos' },
+    position: { type: 'string', enum: ['bottom', 'middle', 'top'] },
+    language: { type: 'string', description: 'auto (default), or e.g. en, hi, Hindi' },
+    quality: { type: 'string', enum: ['balanced', 'fast'], description: 'balanced (default, small model, all languages); fast (base model, English only)' },
+    script: { type: 'string', description: 'optional: the exact words that are spoken (text, or a .txt path). Captions then use this spelling (names, brands, Hindi in Devanagari) with the heard timing. *stars* highlight words' },
+    words: { type: 'string', description: 'optional: an edited .words.json from an earlier call; burns again without listening' },
+    platform: { type: 'string', enum: ['youtube', 'youtube-short', 'insta-reel', 'insta-post', 'insta-story', 'whatsapp-status', 'tiktok', 'square', 'linkedin'], description: 'keeps captions clear of the app\'s buttons and picks the style' },
+    highlight: { type: 'string', description: 'colour of the spoken word, e.g. #ffd23f' },
+    burn: { type: 'boolean', description: 'false: only write the .srt/.vtt/.words.json files (default true)' },
+    out: { type: 'string', description: 'output .mp4 path (default: <input>-captions.mp4)' },
+  }, required: ['input'] } },
+
   // FFmpeg Video Editing Suite tools
   {
     name: 'video_trim',
@@ -328,6 +342,17 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
       const r = await doctor({ install: !!params.install });
       const lines = r.items.map(i => `${i.ok ? '✓' : '✗'} ${i.name}: ${i.detail}${i.fix ? ` → ${i.fix}` : ''}`);
       return { ok: r.ok, text: `${r.ok ? 'Ready to make videos.' : 'Something is missing.'}\n${lines.join('\n')}`, data: r };
+    }
+
+    case 'video_captions': {
+      try {
+        const { videoCaptions } = await import('./captions/tool.mjs');
+        const r = await videoCaptions(params, { cwd, onProgress });
+        return { ...r, image: r.imageFile ? imageData(r.imageFile) : undefined };
+      } catch (e) {
+        const model = /speech (model|engine).*not installed/.test(e.message);
+        return { ok: false, text: `Captions failed: ${e.message}${e.fix ? `\nFIX: ${e.fix}` : ''}${model ? '\nAsk the user first: it is a one-time download of about 340 MB (engine + model), then captions work offline.' : ''}`, data: { error: e.message, needsModel: model } };
+      }
     }
 
     // FFmpeg Editing Suite Tool Cases

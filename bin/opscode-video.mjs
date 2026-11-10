@@ -42,6 +42,8 @@ const HELP = `opscode-video — storyboard JSON to animated MP4, and video editi
   agent-manifest                manifest + tools for the Opscode app
 
 Editing (any video file):
+  captions <in.mp4> [out.mp4] [--style pop|karaoke|line] [--language auto|en|hi] [--script words.txt] [--words edited.words.json] [--platform insta-reel] [--no-burn]
+                                word-by-word captions heard by Whisper, burned in + .srt/.vtt
   trim <in.mp4> [out.mp4] [--start 5] [--end 20] [--duration 15] [--mode exact|fast]
   concat <in1.mp4> <in2.mp4> ... [--out merged.mp4] [--mode auto|copy|reencode]
   mix <in.mp4> <audio.mp3> [out.mp4] [--mode mix|replace] [--audioVolume 0.3] [--originalVolume 1] [--loop false]
@@ -122,6 +124,16 @@ async function main() {
         const r = await runTool('video_doctor', { install: !!flags.install });
         return done({ ok: r.ok, ...r.data }, r.ok ? 0 : 1);
       }
+      case 'captions': {
+        const r = await runTool('video_captions', {
+          input: pos[0], out: pos[1] || flags.out, style: flags.style, position: flags.position, language: flags.language,
+          quality: flags.quality, script: flags.script, words: flags.words, platform: flags.platform, highlight: flags.highlight,
+          burn: flags['no-burn'] ? false : undefined,
+        }, { onProgress: progress });
+        delete r.image;
+        return done(r, r.ok ? 0 : 1);
+      }
+
       // FFmpeg Editing CLI commands
       case 'trim': {
         const r = await runTool('video_trim', {
