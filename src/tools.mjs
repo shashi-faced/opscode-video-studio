@@ -9,6 +9,14 @@ import { render } from './render/render.mjs';
 import { doctor } from './deps/doctor.mjs';
 import { templatesDoc, EXAMPLE, STORY_EXAMPLE, STORY_EXAMPLE_3D, resolveType } from './docs.mjs';
 import { capture } from './render/capture.mjs';
+
+// FFmpeg Editing Suite handlers
+import { trimVideo } from './edit/trim.mjs';
+import { concatVideos } from './edit/concat.mjs';
+import { audioMix } from './edit/mixAudio.mjs';
+import { reframeVideo } from './edit/reframe.mjs';
+import { videoToGif } from './edit/gif.mjs';
+import { inspectMedia } from './edit/ffmpegCore.mjs';
 import { validateFilmFile, isFilm } from './film/film.mjs';
 import { loadStoryboard } from './schema/validate.mjs';
 
@@ -32,6 +40,99 @@ export const TOOL_DEFS = [
   { name: 'video_character', description: 'Designed 3D characters (cast "design"). action sheet: render a turnaround sheet (front, 3/4, side, back, moods, walk) of cast member "id" from the storyboard and return it as an image to check; save: store that design in the character library so any video can use "design": "library:<id>"; list: show saved characters.', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['sheet', 'save', 'list'] }, storyboard: { type: 'string' }, id: { type: 'string', description: 'cast id' } }, required: ['action'] } },
   { name: 'video_capture', description: 'Screenshot a web page or local app URL into a PNG for use in a storyboard. Optional crop in pixels.', parameters: { type: 'object', properties: { url: { type: 'string' }, out: { type: 'string', description: 'output .png path' }, width: { type: 'number' }, height: { type: 'number' }, crop: { type: 'string', description: 'x,y,w,h in pixels (optional)' }, waitMs: { type: 'number' } }, required: ['url', 'out'] } },
   { name: 'video_doctor', description: 'Check that Chrome, ffmpeg and voices work. Use install=true to download a missing browser.', parameters: { type: 'object', properties: { install: { type: 'boolean' } }, required: [] } },
+
+  // FFmpeg Video Editing Suite tools
+  {
+    name: 'video_trim',
+    description: 'Cut, shorten, or trim a video between start and end timestamps. Supports frame-accurate re-encoding or fast lossless cut.',
+    parameters: {
+      type: 'object',
+      properties: {
+        input: { type: 'string', description: 'path to input video file (e.g. video/demo.mp4)' },
+        start: { type: 'string', description: 'start time in seconds (e.g. 5.5) or timestamp ("00:00:05.5")' },
+        end: { type: 'string', description: 'end time in seconds (e.g. 20.0) or timestamp ("00:00:20")' },
+        duration: { type: 'number', description: 'optional cut duration in seconds (alternative to end)' },
+        mode: { type: 'string', enum: ['exact', 'fast'], description: 'cut mode: "exact" (frame-accurate re-encode, default) or "fast" (lossless stream copy)' },
+        out: { type: 'string', description: 'optional output .mp4 path' },
+      },
+      required: ['input'],
+    },
+  },
+  {
+    name: 'video_concat',
+    description: 'Merge or splice multiple video clips sequentially into a single video file. Normalizes resolutions and audio tracks automatically.',
+    parameters: {
+      type: 'object',
+      properties: {
+        inputs: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'ordered list of video file paths to merge',
+        },
+        mode: { type: 'string', enum: ['auto', 'copy', 'reencode'], description: 'concat mode: "auto" (default), "copy" (lossless if formats match), or "reencode"' },
+        out: { type: 'string', description: 'optional output .mp4 path' },
+      },
+      required: ['inputs'],
+    },
+  },
+  {
+    name: 'video_audio_mix',
+    description: 'Mix background music (BGM) with video narration, replace audio track, or adjust volume balance.',
+    parameters: {
+      type: 'object',
+      properties: {
+        video: { type: 'string', description: 'path to video file' },
+        audio: { type: 'string', description: 'path to audio/music file (MP3, WAV, AAC, M4A)' },
+        mode: { type: 'string', enum: ['mix', 'replace'], description: '"mix" overlays audio onto existing video audio (default); "replace" swaps audio entirely' },
+        audioVolume: { type: 'number', description: 'volume factor for added audio track (0.0 to 2.0, default 0.3 for BGM)' },
+        originalVolume: { type: 'number', description: 'volume factor for original video audio (default 1.0)' },
+        loopAudio: { type: 'boolean', description: 'loop audio to cover entire video length if audio is shorter (default true)' },
+        out: { type: 'string', description: 'optional output .mp4 path' },
+      },
+      required: ['video', 'audio'],
+    },
+  },
+  {
+    name: 'video_reframe',
+    description: 'Change video aspect ratio between landscape 16:9, vertical 9:16 (Instagram Reel / YouTube Shorts / TikTok), and 1:1 Square. Uses smart blurred background padding, center crop, or letterbox.',
+    parameters: {
+      type: 'object',
+      properties: {
+        input: { type: 'string', description: 'path to input video file' },
+        format: { type: 'string', enum: ['9:16', '16:9', '1:1', '4:5'], description: 'target aspect ratio: "9:16" (Reels/Shorts), "16:9" (YouTube/landscape), "1:1" (Square), "4:5" (Portrait feed)' },
+        style: { type: 'string', enum: ['blur_pad', 'crop', 'fit'], description: 'reframing style: "blur_pad" (blurred zoomed video background, default), "crop" (center-crop to fill), "fit" (letterboxed with black padding)' },
+        out: { type: 'string', description: 'optional output .mp4 path' },
+      },
+      required: ['input', 'format'],
+    },
+  },
+  {
+    name: 'video_inspect',
+    description: 'Inspect a video or audio file and return detailed metadata: duration, resolution, fps, bitrate, audio channels, codecs, and size.',
+    parameters: {
+      type: 'object',
+      properties: {
+        input: { type: 'string', description: 'path to video or audio file to inspect' },
+      },
+      required: ['input'],
+    },
+  },
+  {
+    name: 'video_to_gif',
+    description: 'Convert a video or trimmed segment into a high-quality animated GIF with 256-color palette optimization.',
+    parameters: {
+      type: 'object',
+      properties: {
+        input: { type: 'string', description: 'path to input video file' },
+        start: { type: 'string', description: 'start time in seconds or timestamp (default 0)' },
+        duration: { type: 'number', description: 'GIF duration in seconds (default 5, max 30)' },
+        fps: { type: 'number', description: 'frames per second (default 15, max 30)' },
+        width: { type: 'number', description: 'max pixel width (default 480)' },
+        out: { type: 'string', description: 'optional output .gif path' },
+      },
+      required: ['input'],
+    },
+  },
 ];
 
 /** Speed of a render, and a hint when 3D could not use the graphics card. */
@@ -197,6 +298,106 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
       const r = await doctor({ install: !!params.install });
       const lines = r.items.map(i => `${i.ok ? '✓' : '✗'} ${i.name}: ${i.detail}${i.fix ? ` → ${i.fix}` : ''}`);
       return { ok: r.ok, text: `${r.ok ? 'Ready to make videos.' : 'Something is missing.'}\n${lines.join('\n')}`, data: r };
+    }
+
+    // FFmpeg Editing Suite Tool Cases
+    case 'video_trim': {
+      try {
+        const r = await trimVideo(params, { cwd, onProgress });
+        return {
+          ok: true,
+          videoFile: r.file,
+          text: `Video trimmed successfully: ${r.file}\nDuration: ${r.duration.toFixed(1)} s (${r.formattedDuration}), ${r.width}×${r.height}, ${r.sizeMB} MB (mode: ${r.mode}, cut from ${r.start}s to ${r.end}s).`,
+          image: r.poster ? imageData(r.poster) : undefined,
+          imageFile: r.poster,
+          data: r,
+        };
+      } catch (e) {
+        return { ok: false, text: `Trim failed: ${e.message}${e.fix ? `\nFIX: ${e.fix}` : ''}`, data: { error: e.message } };
+      }
+    }
+
+    case 'video_concat': {
+      try {
+        const r = await concatVideos(params, { cwd, onProgress });
+        return {
+          ok: true,
+          videoFile: r.file,
+          text: `Merged ${r.clipsCount} clips into: ${r.file}\nTotal duration: ${r.duration.toFixed(1)} s (${r.formattedDuration}), ${r.width}×${r.height}, ${r.sizeMB} MB.`,
+          image: r.poster ? imageData(r.poster) : undefined,
+          imageFile: r.poster,
+          data: r,
+        };
+      } catch (e) {
+        return { ok: false, text: `Concat failed: ${e.message}${e.fix ? `\nFIX: ${e.fix}` : ''}`, data: { error: e.message } };
+      }
+    }
+
+    case 'video_audio_mix': {
+      try {
+        const r = await audioMix(params, { cwd, onProgress });
+        return {
+          ok: true,
+          videoFile: r.file,
+          text: `Audio ${r.mode} successful: ${r.file}\nDuration: ${r.duration.toFixed(1)} s, ${r.width}×${r.height}, ${r.sizeMB} MB (audio vol: ${r.audioVolume}, original vol: ${r.originalVolume}).`,
+          image: r.poster ? imageData(r.poster) : undefined,
+          imageFile: r.poster,
+          data: r,
+        };
+      } catch (e) {
+        return { ok: false, text: `Audio mix failed: ${e.message}${e.fix ? `\nFIX: ${e.fix}` : ''}`, data: { error: e.message } };
+      }
+    }
+
+    case 'video_reframe': {
+      try {
+        const r = await reframeVideo(params, { cwd, onProgress });
+        return {
+          ok: true,
+          videoFile: r.file,
+          text: `Video reframed to ${r.format} (${r.formatDescription}): ${r.file}\nResolution: ${r.width}×${r.height}, style: ${r.style}, duration: ${r.duration.toFixed(1)} s, ${r.sizeMB} MB.`,
+          image: r.poster ? imageData(r.poster) : undefined,
+          imageFile: r.poster,
+          data: r,
+        };
+      } catch (e) {
+        return { ok: false, text: `Reframe failed: ${e.message}${e.fix ? `\nFIX: ${e.fix}` : ''}`, data: { error: e.message } };
+      }
+    }
+
+    case 'video_inspect': {
+      try {
+        const r = await inspectMedia(params.input, { cwd });
+        const summary = [
+          `File: ${r.file} (${r.sizeMB} MB)`,
+          `Duration: ${r.formattedDuration} (${r.duration} s)`,
+          r.hasVideo ? `Video: ${r.width}×${r.height} (${r.aspectRatio}), ${r.fps} fps, codec: ${r.videoCodec}` : 'Video: None',
+          r.hasAudio ? `Audio: codec ${r.audioCodec}` : 'Audio: None',
+          r.bitrateKbps ? `Bitrate: ${r.bitrateKbps} kbps` : '',
+        ].filter(Boolean).join('\n');
+        return {
+          ok: true,
+          text: summary,
+          data: r,
+        };
+      } catch (e) {
+        return { ok: false, text: `Inspect failed: ${e.message}${e.fix ? `\nFIX: ${e.fix}` : ''}`, data: { error: e.message } };
+      }
+    }
+
+    case 'video_to_gif': {
+      try {
+        const r = await videoToGif(params, { cwd, onProgress });
+        return {
+          ok: true,
+          text: `Animated GIF created: ${r.file}\nWidth: ${r.width}px, ${r.fps} fps, length: ${r.duration}s, size: ${r.sizeMB} MB.`,
+          image: `data:image/gif;base64,${fs.readFileSync(r.file).toString('base64')}`,
+          imageFile: r.file,
+          data: r,
+        };
+      } catch (e) {
+        return { ok: false, text: `GIF creation failed: ${e.message}${e.fix ? `\nFIX: ${e.fix}` : ''}`, data: { error: e.message } };
+      }
     }
 
     default:

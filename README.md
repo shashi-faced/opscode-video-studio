@@ -119,6 +119,12 @@ A plain storyboard also works with `film-render` (one sequence, one shot per sce
 | `assets [list\|install\|remove] [3d-starter\|3d-world]` | Optional 3D character and world packs |
 | `character [sheet\|save\|list] <storyboard> <id>` | Turnaround sheet of a designed 3D character; character library |
 | `capture <url> <out.png> [--crop x,y,w,h]` | Screenshot a page or local app |
+| `trim <in.mp4> [out.mp4] [--start 5] [--end 20] [--duration 15] [--mode exact\|fast]` | Cut a clip (frame-accurate, or instant lossless copy) |
+| `concat <a.mp4> <b.mp4> ... [--out merged.mp4]` | Join clips in order; sizes and audio matched |
+| `mix <in.mp4> <music.mp3> [out.mp4] [--mode mix\|replace] [--audioVolume 0.3]` | Add music under a video, or replace its sound |
+| `reframe <in.mp4> [out.mp4] --format 9:16\|16:9\|1:1\|4:5 [--style blur_pad\|crop\|fit]` | Change the shape (16:9 to reel, square, feed) |
+| `inspect <in.mp4>` | Length, size, fps, codecs, bitrate |
+| `gif <in.mp4> [out.gif] [--start 0] [--duration 5] [--fps 15] [--width 480]` | Short GIF with an optimised palette |
 | `tool <name> --b64 <json>` | Bridge used by the Opscode app |
 | `agent-manifest` | Manifest + tool definitions read by the app on install |
 
@@ -152,6 +158,7 @@ src/render/           browser, render pipeline, capture
 src/audio/            tts, synth, mix, wav
 src/qa/               layout checks + contact sheet
 src/deps/             locate Chrome/ffmpeg, doctor
+src/edit/             editing any video file: trim, concat, mix, reframe, inspect, gif
 examples/             reel.json (9:16), ad.json (16:9), free-model-diwali.json
 plans/                design and phase plans
 ```

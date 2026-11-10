@@ -22,7 +22,7 @@ const quiet = !!flags.quiet;
 const progress = (p) => { if (!quiet) process.stdout.write(JSON.stringify({ progress: p }) + '\n'); };
 const done = (obj, code = 0) => { process.stdout.write(JSON.stringify(obj) + '\n'); process.exit(code); };
 
-const HELP = `opscode-video — storyboard JSON to animated MP4
+const HELP = `opscode-video — storyboard JSON to animated MP4, and video editing
 
   doctor [--install]            check / install Chrome, ffmpeg, voices
   templates [type] [platform]   storyboard reference (optionally for one video type / platform)
@@ -39,7 +39,15 @@ const HELP = `opscode-video — storyboard JSON to animated MP4
   capture <url> <out.png> [--width 1440 --height 900 --crop x,y,w,h]
   tool <name> '<json params>'   generic bridge used by the Opscode app
   tools                         list tool definitions (JSON)
-  agent-manifest                manifest + tools for the Opscode app`;
+  agent-manifest                manifest + tools for the Opscode app
+
+Editing (any video file):
+  trim <in.mp4> [out.mp4] [--start 5] [--end 20] [--duration 15] [--mode exact|fast]
+  concat <in1.mp4> <in2.mp4> ... [--out merged.mp4] [--mode auto|copy|reencode]
+  mix <in.mp4> <audio.mp3> [out.mp4] [--mode mix|replace] [--audioVolume 0.3] [--originalVolume 1] [--loop false]
+  reframe <in.mp4> [out.mp4] --format 9:16|16:9|1:1|4:5 [--style blur_pad|crop|fit]
+  inspect <in.mp4>              duration, size, fps, codecs, bitrate
+  gif <in.mp4> [out.gif] [--start 0] [--duration 5] [--fps 15] [--width 480]`;
 
 async function main() {
   try {
@@ -114,6 +122,69 @@ async function main() {
         const r = await runTool('video_doctor', { install: !!flags.install });
         return done({ ok: r.ok, ...r.data }, r.ok ? 0 : 1);
       }
+      // FFmpeg Editing CLI commands
+      case 'trim': {
+        const r = await runTool('video_trim', {
+          input: pos[0],
+          out: pos[1] || flags.out,
+          start: flags.start,
+          end: flags.end,
+          duration: flags.duration ? +flags.duration : undefined,
+          mode: flags.mode || 'exact',
+        }, { onProgress: progress });
+        return done(r, r.ok ? 0 : 1);
+      }
+
+      case 'concat': {
+        const inputs = flags.inputs ? flags.inputs.split(',') : pos;
+        const r = await runTool('video_concat', {
+          inputs,
+          out: flags.out,
+          mode: flags.mode || 'auto',
+        }, { onProgress: progress });
+        return done(r, r.ok ? 0 : 1);
+      }
+
+      case 'mix': {
+        const r = await runTool('video_audio_mix', {
+          video: pos[0],
+          audio: pos[1],
+          out: pos[2] || flags.out,
+          mode: flags.mode || 'mix',
+          audioVolume: flags.audioVolume !== undefined ? +flags.audioVolume : undefined,
+          originalVolume: flags.originalVolume !== undefined ? +flags.originalVolume : undefined,
+          loopAudio: flags.loop !== undefined ? flags.loop === 'true' || flags.loop === true : true,
+        }, { onProgress: progress });
+        return done(r, r.ok ? 0 : 1);
+      }
+
+      case 'reframe': {
+        const r = await runTool('video_reframe', {
+          input: pos[0],
+          out: pos[1] || flags.out,
+          format: flags.format || '9:16',
+          style: flags.style || 'blur_pad',
+        }, { onProgress: progress });
+        return done(r, r.ok ? 0 : 1);
+      }
+
+      case 'inspect': {
+        const r = await runTool('video_inspect', { input: pos[0] }, { onProgress: progress });
+        return done(r, r.ok ? 0 : 1);
+      }
+
+      case 'gif': {
+        const r = await runTool('video_to_gif', {
+          input: pos[0],
+          out: pos[1] || flags.out,
+          start: flags.start,
+          duration: flags.duration ? +flags.duration : undefined,
+          fps: flags.fps ? +flags.fps : undefined,
+          width: flags.width ? +flags.width : undefined,
+        }, { onProgress: progress });
+        return done(r, r.ok ? 0 : 1);
+      }
+
       case 'tool': {
         const name = pos[0];
         let params = {};
@@ -123,7 +194,7 @@ async function main() {
         const r = await runTool(name, params, { cwd: flags.cwd || process.cwd(), onProgress: progress });
         // --image-path: return the image as a file path instead of inline base64, so
         // hosts with output limits (the Opscode app keeps 64 KB) get a small result line.
-        if (flags['image-path']) return done({ ok: r.ok, text: r.text, imageFile: r.imageFile, data: r.data }, 0);
+        if (flags['image-path']) return done({ ok: r.ok, text: r.text, imageFile: r.imageFile, videoFile: r.videoFile, data: r.data }, 0);
         return done({ ok: r.ok, text: r.text, image: r.image, data: r.data }, 0);
       }
       case undefined: case 'help': case '--help': case '-h':
