@@ -77,6 +77,32 @@ Each tile renders a style from plan 14 §3.4. That table grows from 7 to 11 styl
 - **`scripts/style-previews.mjs`:** renders each style's own short sample storyboard into the 4-second `webm` and `jpg` for the gallery. It's re-run whenever a style changes, so the tiles always show what the engine really makes. **We don't bundle the reference repo's GIFs or videos.** They're that project's media, and some imitate specific YouTube channels.
 - **Agent prompt (manifest):** "If [Video settings] has a Video style, set `look: "stickman"` and `art.style` to it, call `video_templates` with that style, and make the video without asking about style again."
 
+## 5b. Status (2026-11-10)
+**Done (app branch `version13`, package `version13`; not committed):**
+- **G1:**
+  - the `styles` layout: 16:9 tiles; the preview plays on hover, focus or selection, and pauses with reduced motion; arrow-key navigation; `aria-label`s;
+  - option fields `preview` and `example`;
+  - the **Try this example** button, which fills the message box;
+  - the `hideWhen` wildcard `'*'`, which hides Look, 2D/3D characters and Places once a style is picked.
+- **G2:** the stickman guide, validator and aliases were already built in plan 14 Phase 2.
+- **G3:** `scripts/style-previews.mjs` renders all **10** tiles with our engine. Each is a 4 s WebM plus a JPG, 336 KB in total (budget 4 MB), in `public/agents/video-studio/styles/`.
+- **Every code-drawn style is enabled now**, not just the 4 planned. They all render in code, and the painted versions add on later.
+- `Character Explainer` shows as "Soon" (G4).
+
+**Checked:** in the browser pane, on a temporary standalone page since the app needs a sign-in.
+- The gallery shows first; selecting Retro TV plays its preview and hides Look.
+- The info row and the example button work: the message box got "Is your dog guilty, or just scared?".
+- The `[Video settings]` block reads `Video style: Retro TV — look "stickman", art style "retro-tv"; …`.
+- The type check passes.
+
+**Needed before users see it working:** the gallery's choices need package **v0.14.0**, because the installed v0.13.0 has no stickman look. The steps:
+1. bump to v0.14.0 and push the `v0.14.0` tag;
+2. point the catalog at it;
+3. rebuild the app;
+4. click Update in the store.
+
+Without that, the agent would get a style it can't draw. The validator then falls back to the 2D look with a warning.
+
 ## 6. Phases
 
 These run after the plan 14 phases they depend on. Days are extra work on top of plan 14.

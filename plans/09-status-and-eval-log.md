@@ -497,6 +497,17 @@ Findings:
 | Same story in the other 9 styles | all valid; 1 layout warning (retro-tv upper-case title touches a character, which is the check working) |
 | Tests | 134 pass (9 new) |
 
+## v0.14.0-dev: style gallery (plan 15 G1–G3) (2026-11-10)
+
+- **Setup popup:** Video Studio's setup popup opens with a **Video style** gallery: 10 working tiles plus "Character Explainer" marked Soon.
+- **Tiles:** each is a 4 s preview rendered by our engine (`scripts/style-previews.mjs`, 336 KB for all 10).
+- **Choosing a style:**
+  - hides the Look and character pickers;
+  - sends `look "stickman", art style "<id>"` to the agent;
+  - offers **Try this example**, which fills in a topic.
+- **Checked in the browser pane:** selection, preview playback, hide rules, the example button and the settings text.
+- **Not released yet:** this needs package v0.14.0 in the store.
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.
