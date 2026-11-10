@@ -50,7 +50,7 @@ Set `"platform"` to where the video will be posted. It sets the frame size, keep
 | `whatsapp-status` | 1080×1920 | pop | split into 60 s parts |
 | `square`, `linkedin` | 1:1 / 16:9 | line | cover / thumbnail |
 
-`captions` is `true`, `false`, or `{ "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top" }`. Captions are timed to the spoken words using the voice's word timings: `pop` shows 1–3 big words at a time (reels), `karaoke` lights up the word being spoken. Examples: [insta-reel.json](examples/insta-reel.json), [youtube-ad.json](examples/youtube-ad.json).
+`captions` is `true`, `false`, or `{ "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top" }`. Captions are timed to the spoken words using the voice's word timings: `pop` shows 1–3 big words at a time (reels), `karaoke` lights up the word being spoken. Examples: [insta-reel.json](examples/insta-reel.json), [youtube-ad.json](examples/youtube-ad.json). Every render also writes `<title>.srt` and `<title>.vtt` next to the MP4, with the same caption chunks. Upload them with the video; the `.vtt` carries per-word times. Lines are at most 42 characters, or 32 on 9:16 and 4:5 frames, with at most 2 lines per cue.
 
 ## 3D look
 
@@ -99,7 +99,7 @@ For anything longer than about 2 minutes, write a **film** instead of a storyboa
 - Each segment is cached by a hash of exactly what it draws, so after an edit only the changed shots render again, and a stopped render resumes where it left off.
 - Voice and music are made once for the whole film; each sequence gets its own music cue, crossfaded at the cut.
 - The segments are joined without re-encoding.
-- Output: the MP4, an `.srt` captions file, a chapters list (one chapter per sequence) and a poster.
+- Output: the MP4, `.srt` and `.vtt` caption files, a chapters list (one chapter per sequence) and a poster.
 - The project folder `out/<title>/` holds `project.json` (status of every shot) and `shots/<id>/`.
 
 A plain storyboard also works with `film-render` (one sequence, one shot per scene).

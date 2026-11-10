@@ -6,7 +6,7 @@
 //   project.json          status of every shot, timings, last result
 //   shots/<id>/build/     compiled page for the shot
 //   shots/<id>/segment.mp4 + segment.json (hash, frames, fps)
-//   audio.wav, <title>.mp4, <title>.srt, <title>-chapters.txt, poster.jpg
+//   audio.wav, <title>.mp4, <title>.srt, <title>.vtt, <title>-chapters.txt, poster.jpg
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,6 +23,8 @@ import { SR } from '../audio/wav.mjs';
 import { launchBrowser, openBuild, gpuWorks, UserError } from '../render/browser.mjs';
 import { findFfmpeg } from '../deps/locate.mjs';
 import { slug, outDirFor } from '../pipeline.mjs';
+import { writeSubtitles } from '../captions/formats.mjs';
+import { MAX_CHARS } from '../captions/group.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const ENGINE_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
@@ -107,12 +109,6 @@ function filmMusic({ storyboard, sequences, seqSpans, timeline, baseDir }) {
   return [L, R];
 }
 
-const srtTime = (t) => {
-  const ms = Math.max(0, Math.round(t * 1000));
-  const p = (n, w = 2) => String(n).padStart(w, '0');
-  return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`;
-};
-const plainCaption = (html) => String(html).replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
 const clock = (sec) => { const t = Math.floor(sec); return t >= 3600 ? `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}` : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 
 /**
@@ -284,12 +280,8 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
 
   // 6. Extras: captions file, chapters (one per sequence), poster.
   const base = outFile.replace(/\.mp4$/i, '');
-  const caps = filmScenes.flatMap(sc => sc.captions).filter(c => plainCaption(c.html));
-  let srt = null;
-  if (caps.length) {
-    srt = `${base}.srt`;
-    fs.writeFileSync(srt, caps.map((c, k) => `${k + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${plainCaption(c.html)}\n`).join('\n'));
-  }
+  const subs = writeSubtitles(base, filmScenes.flatMap(sc => sc.captions), { maxChars: /^(9:16|4:5)$/.test(sb.format || '') ? MAX_CHARS.tall : MAX_CHARS.wide });
+  const srt = subs.srt || null, vtt = subs.vtt || null;
   const chapters = [];
   seqSpans.forEach((span, si) => { if (span && (!chapters.length || span.start - chapters.at(-1).start >= 10)) chapters.push({ start: chapters.length ? span.start : 0, title: sequences[si].title }); });
   let chaptersFile = null;
@@ -306,6 +298,7 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
     project: projectDir,
     poster: fs.existsSync(poster) ? poster : null,
     srt,
+    vtt,
     chapters: chaptersFile,
     duration: filmTimeline.duration,
     fps,

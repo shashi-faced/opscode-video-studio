@@ -145,6 +145,7 @@ export function speedText(r) {
 
 function extrasText(x = {}) {
   const out = [];
+  if (x.srt) out.push(`Subtitles: ${x.srt} and ${x.vtt} (upload with the video)`);
   if (x.thumbnail) out.push(`YouTube thumbnail: ${x.thumbnail}`);
   if (x.description) out.push(`Title/description${x.chapters ? ` with ${x.chapters} chapters` : ''}: ${x.description}`);
   if (x.cover) out.push(`Cover image: ${x.cover}`);
@@ -240,7 +241,7 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
         const mins = (s) => (s >= 60 ? `${Math.floor(s / 60)} min ${Math.round(s % 60)} s` : `${Math.round(s)} s`);
         return {
           ok: true,
-          text: `Film rendered: ${r.file}\n${r.width}×${r.height}, ${mins(r.duration)}, ${r.sequences} sequence(s), ${r.shots} shots (${r.rendered} rendered, ${r.cached} reused), ${r.workers} workers, ${r.sizeMB} MB. Took ${mins(r.seconds)}.${r.srt ? `\nCaptions: ${r.srt}` : ''}${r.chapters ? `\nChapters: ${r.chapters}` : ''}\nProject folder: ${r.project}\nTell the user where the file is.`,
+          text: `Film rendered: ${r.file}\n${r.width}×${r.height}, ${mins(r.duration)}, ${r.sequences} sequence(s), ${r.shots} shots (${r.rendered} rendered, ${r.cached} reused), ${r.workers} workers, ${r.sizeMB} MB. Took ${mins(r.seconds)}.${r.srt ? `\nSubtitles: ${r.srt}${r.vtt ? ` and ${r.vtt}` : ''}` : ''}${r.chapters ? `\nChapters: ${r.chapters}` : ''}\nProject folder: ${r.project}\nTell the user where the file is.`,
           image: r.poster ? imageData(r.poster) : undefined,
           imageFile: r.poster || undefined,
           data: r,

@@ -250,7 +250,25 @@ Original scope:
   - pure silence and music-only input give no words;
   - a missing model gives a clear error with the install command.
 
-### Phase 3: Caption engine refactor plus subtitle files (~1.5 days)
+### Phase 3: Caption engine refactor plus subtitle files ✅ (2026-11-10, branch `version13`)
+Built:
+- `src/captions/align.mjs`: a text pass with an 8-word search window.
+- `group.mjs`: `groupWords`, with `maxChars` (42 wide, 32 on 9:16 and 4:5) and a minimum on-screen time of 0.7 s.
+- `formats.mjs`: SRT, WebVTT with inline per-word timestamps, words.json, `writeSubtitles`.
+- `timeline.mjs` now uses them. The existing timeline and karaoke tests pass unchanged.
+- `video_render` and `video_film_render` write `<title>.srt` and `<title>.vtt`. Films used to write only `.srt`.
+- The tool replies list the subtitle files.
+- File names keep letters of any script: a Hindi title gave `video.mp4` before, and now gives `दिवाली-की-शुभकामनाएँ.mp4`.
+- `test/captions.test.mjs`: 12 tests. 104 of 104 pass.
+
+Change from the design: the "DTW pass" is simpler and works better.
+- Between two words that matched by spelling, the unmatched script words take their times from the heard words between those anchors, shared out by letter count.
+- With no matches at all (Hindi heard in Latin letters), the anchors are simply the start and end, so the whole script is laid over the heard words in order.
+- On the Hindi fixture, the true script aligned to what Whisper heard (35% spelling slips) lands within 150 ms (median) of the true word times. That is a test.
+
+Checked on a real render (Hindi Diwali example, 9:16): the `.srt` and `.vtt` parse in ffmpeg with 13 cues each, and the `.srt` embeds as an MP4 subtitle track (`mov_text`).
+
+Original scope:
 - `src/captions/align.mjs` (text pass and DTW pass), `group.mjs`, `formats.mjs`.
 - `timeline.mjs` uses them. The existing timeline and karaoke tests pass without changes to their expectations.
 - `video_render` and `video_film_render` write `.srt` and `.vtt` next to the MP4.

@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { prepare, slug } from '../pipeline.mjs';
+import { writeSubtitles } from '../captions/formats.mjs';
+import { MAX_CHARS } from '../captions/group.mjs';
 import { synthesize } from '../audio/tts.mjs';
 import { buildMusic, mixToWav } from '../audio/mix.mjs';
 import { openBuild, launchBrowser, gpuWorks, UserError } from './browser.mjs';
@@ -199,6 +201,11 @@ export async function render(storyboardFile, { out, fps, workers, onProgress = (
   let extras = {};
   try { extras = writeExtras({ ffmpeg, storyboard, timeline, outFile, outDir, coverFrame, stage: build.stage }); }
   catch (e) { extras = { error: `extra files failed: ${e.message}` }; }
+  // Subtitle files (YouTube, Instagram uploads): the same caption chunks as the video.
+  try {
+    const subs = writeSubtitles(outFile.replace(/\.mp4$/i, ''), timeline.scenes.flatMap(sc => sc.captions), { maxChars: /^(9:16|4:5)$/.test(storyboard.format || '') ? MAX_CHARS.tall : MAX_CHARS.wide });
+    if (subs.srt) Object.assign(extras, { srt: subs.srt, vtt: subs.vtt });
+  } catch (e) { extras.subtitlesError = e.message; }
   const lengthNote = plat?.maxSec && timeline.duration > plat.maxSec ? `${Math.round(timeline.duration)} s is longer than ${plat.label} allows (${plat.maxSec} s)`
     : plat?.warnSec && timeline.duration > plat.warnSec ? `${Math.round(timeline.duration)} s; ${plat.label} works best under ${plat.warnSec} s` : null;
   return {

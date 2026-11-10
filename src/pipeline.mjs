@@ -6,7 +6,8 @@ import { buildTimeline } from './timeline.mjs';
 import { compile } from './compiler/compile.mjs';
 import { UserError } from './render/browser.mjs';
 
-export const slug = (s) => String(s || 'video').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'video';
+// File name from a title. Letters of any script are kept (a Hindi title gives a Hindi file name, not "video").
+export const slug = (s) => [...String(s || 'video').normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu, '-').replace(/(^-|-$)/g, '')].slice(0, 60).join('').replace(/-$/, '') || 'video';
 
 export function outDirFor(storyboardFile, storyboard) {
   return path.join(path.dirname(path.resolve(storyboardFile)), 'out', slug(storyboard.title));

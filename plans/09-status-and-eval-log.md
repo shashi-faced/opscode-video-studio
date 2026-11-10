@@ -402,6 +402,19 @@ The time per second is high only because the clips are 5–10 s long. Language d
 |---|---|
 | Tests | 92 pass (17 new in `test/asr.test.mjs`; 11 editing tests from Phase 0) |
 
+## v0.13.0-dev: Whisper captions, Phase 3 caption engine (2026-11-10)
+
+- Alignment, grouping and subtitle files moved to `src/captions/`, shared by generated videos and (next) captions on any video.
+- New alignment fill: a script with no spelling matches (Hindi heard in Latin letters) is laid over the heard words in order.
+- Real check: the Hindi fixture's true script aligned to Whisper's words is within 150 ms (median) of the true times.
+- Every render now writes `.srt` and `.vtt` (the VTT has per-word times). Lines are at most 42 characters, or 32 on tall frames.
+- Hindi titles now give Hindi file names instead of `video.mp4`.
+
+| Test | Result |
+|---|---|
+| Tests | 104 pass (12 new in `test/captions.test.mjs`) |
+| Real render (Hindi Diwali, 9:16) | `.srt` and `.vtt` written, 13 cues each, both parse in ffmpeg; the `.srt` embeds as a subtitle track |
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.
