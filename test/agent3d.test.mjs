@@ -51,7 +51,7 @@ test('render results say how fast 3D was and hint when there is no GPU', () => {
   assert.match(speedText({ has3d: true, gpu: true, renderFps: 22.8, workers: 4 }), /22\.8 frames\/s.*GPU/);
   assert.match(speedText({ has3d: true, gpu: false, renderFps: 3 }), /CPU.*video_doctor/);
   const t = TOOL_DEFS.find(x => x.name === 'video_templates');
-  assert.deepEqual(t.parameters.properties.look.enum, ['2d', '3d']);
+  assert.deepEqual(t.parameters.properties.look.enum, ['2d', '3d', 'stickman']);
 });
 
 test('words models invent are corrected with a warning instead of failing (eval/3d findings)', () => {

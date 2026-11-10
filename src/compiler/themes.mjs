@@ -31,6 +31,12 @@ const FONT_FILES = [
   ['Hind', 700, '@fontsource/hind/files/hind-latin-700-normal.woff2'],
   ['Hind', 400, '@fontsource/hind/files/hind-devanagari-400-normal.woff2', 'U+0900-097F'],
   ['Hind', 600, '@fontsource/hind/files/hind-devanagari-600-normal.woff2', 'U+0900-097F'],
+  ['Kalam', 400, '@fontsource/kalam/files/kalam-latin-400-normal.woff2'],
+  ['Kalam', 700, '@fontsource/kalam/files/kalam-latin-700-normal.woff2'],
+  ['Kalam', 400, '@fontsource/kalam/files/kalam-devanagari-400-normal.woff2', 'U+0900-097F'],
+  ['Kalam', 700, '@fontsource/kalam/files/kalam-devanagari-700-normal.woff2', 'U+0900-097F'],
+  ['Caveat', 600, '@fontsource/caveat/files/caveat-latin-600-normal.woff2'],
+  ['Caveat', 700, '@fontsource/caveat/files/caveat-latin-700-normal.woff2'],
   ['JetBrains Mono', 400, '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2'],
   ['JetBrains Mono', 600, '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-600-normal.woff2'],
 ];

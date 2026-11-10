@@ -4,6 +4,9 @@
 import { escapeHtml as esc, markup } from '../timeline.mjs';
 import { mascotSvg } from './mascots.mjs';
 import { characterSvg, CHARACTER_CSS, KIND_INFO } from './characters.mjs';
+import { stickSvg, STICK_CSS, baseMood } from './stick.mjs';
+import { sceneBackdrop, stickOptions, styleTheme } from '../art/styles.mjs';
+import { propsHtml, PROP_CSS } from '../art/props.mjs';
 import { backgroundHtml, BACKGROUND_CSS } from './backgrounds.mjs';
 
 const fit = (tag, cls, html, max, lines, lh = 1.06, d = 0) =>
@@ -62,6 +65,7 @@ function tags(sc, ctx) {
 }
 
 // ---------- story scenes: background + characters + speech bubbles ----------
+const STICK_KINDS = new Set(['boy', 'girl', 'man', 'woman', 'grandpa', 'grandma']);
 const POS_X = [
   { 'far-left': 12, left: 27, center: 50, right: 73, 'far-right': 88 },   // 16:9
   { 'far-left': 18, left: 28, center: 50, right: 72, 'far-right': 82 },   // 9:16
@@ -97,7 +101,9 @@ function storyScene(sc, ctx) {
   // Speakers who were not placed are added, so every bubble has someone to point at.
   const listed = [...(sc.characters || [])];
   for (const l of lines) if (!listed.some(c => String(c.who).toLowerCase() === String(l.who).toLowerCase())) listed.push({ who: l.who });
-  const chars = placeCharacters(listed, ctx);
+  let chars = placeCharacters(listed, ctx);
+  // Stickmen are thin: drawn a little larger so faces read at phone size.
+  if (!ctx.is3d?.(sc) && ctx.isStick?.(sc)) chars = chars.map(c => ({ ...c, s: +(c.s * 1.18).toFixed(3) }));
   const { ground, chh } = ctx.layout;
   // 3D look: the world module draws the place and the characters; this scene keeps its HTML text and bubbles.
   const is3d = ctx.is3d?.(sc);
@@ -107,7 +113,7 @@ function storyScene(sc, ctx) {
       characters: chars.map((c, k) => {
         const firstLine = lines.find(l => String(l.who).toLowerCase() === c.who.id);
         return { id: c.who.id, kind: c.who.kind, name: c.who.name, color: c.who.color || null, hair: c.who.hair || null, skin: c.who.skin || null,
-          modelPref: c.who.design ? 'built-in' : c.who.model || 'auto', design: c.who.design || null, turn: c.turn ?? null, near: c.near || null, x: c.x, s: c.s, facing: c.facing, pose: c.pose || 'idle', mood: c.mood || firstLine?.mood || 'happy', enter: c.enter || 'none', delay: +(0.2 + k * 0.3).toFixed(2) };
+          modelPref: c.who.design ? 'built-in' : c.who.model || 'auto', design: c.who.design || null, turn: c.turn ?? null, near: c.near || null, x: c.x, s: c.s, facing: c.facing, pose: c.pose || 'idle', mood: baseMood(c.mood || firstLine?.mood || 'happy'), enter: c.enter || 'none', delay: +(0.2 + k * 0.3).toFixed(2) };
       }),
       lines: lines.map(l => ({ who: String(l.who).toLowerCase(), mood: l.mood || null, shot: l.shot || null, q: /[?？]\s*$/.test(String(l.text || '')) })),
       // Film shots tell us the previous shot's place ("background|time"), so the director knows when to establish.
@@ -115,12 +121,16 @@ function storyScene(sc, ctx) {
     };
   }
 
+  // Stickman look (plan 14): people are drawn as stickmen, animals and objects flat with an ink outline.
+  const stick = !is3d && ctx.isStick?.(sc) ? stickOptions(ctx.art) : null;
   const charHtml = is3d ? '' : chars.map((c, k) => {
     const firstLine = lines.find(l => String(l.who).toLowerCase() === c.who.id);
     const mood = c.mood || firstLine?.mood || 'happy';
     const enter = c.enter && c.enter !== 'none' ? `enter-${c.enter}` : '';
     const from = c.x < 50 ? 'calc(var(--u)*-115)' : 'calc(var(--u)*115)';
-    const svg = characterSvg(c.who.kind, { mood, pose: c.pose || 'idle', color: c.who.color, hair: c.who.hair, skin: c.who.skin }, `c${ctx.index}_${k}`);
+    const svg = stick && STICK_KINDS.has(c.who.kind)
+      ? stickSvg(c.who.kind, { ...stick, mood, pose: c.pose || 'idle', color: c.who.color, id: c.who.id })
+      : characterSvg(c.who.kind, { mood, pose: c.pose || 'idle', color: c.who.color, hair: c.who.hair, skin: c.who.skin, flat: stick ? { ink: stick.ink } : null }, `c${ctx.index}_${k}`);
     return `<div class="chwrap ${enter}" data-who="${esc(c.who.id)}" style="left:${c.x}%;--s:${c.s};--d:${(0.2 + k * 0.3).toFixed(2)}s;--from:${from};--blink:-${(k * 1.37).toFixed(2)}s"><div class="chflip${c.facing === 'left' ? ' flip' : ''}">${svg}</div></div>`;
   }).join('');
 
@@ -139,7 +149,10 @@ function storyScene(sc, ctx) {
   // With a title, the story text flows right under it instead of sitting at a fixed height.
   const title = sc.headline
     ? `<div class="storytitle">${sc.kicker ? fit('div', 'kicker a-up', esc(sc.kicker), sz('kicker', ctx), 1, 1.2, 0.1) : ''}${fit('h1', 'headline a-pop', markup(sc.headline), sz('stitle', ctx), 2, 1.04, 0.25)}${text}</div>` : '';
-  return `<div class="in t-story no-scale${is3d ? ' w3d' : ''}">${is3d ? '' : backgroundHtml(sc.background || 'meadow', sc.time || 'day')}${charHtml}${bubbles}${title}${sc.headline ? '' : text}</div>`;
+  const t = stick ? styleTheme(ctx.art) : null;
+  const props = is3d || !sc.props?.length ? '' : propsHtml(sc.props, { ink: t ? t.ink : '#2b2b33', accent: t ? t.accent : 'var(--accent)', accent2: t ? t.accent2 : 'var(--accent2)', ground: ctx.layout.ground, posX: POS_X[ctx.fi] });
+  const backdrop = is3d ? '' : stick ? sceneBackdrop(ctx.art, sc) : backgroundHtml(sc.background || 'meadow', sc.time || 'day');
+  return `<div class="in t-story no-scale${is3d ? ' w3d' : ''}${stick ? ' st-story' : ''}">${backdrop}${props}${charHtml}${bubbles}${title}${sc.headline ? '' : text}</div>`;
 }
 
 export const TEMPLATE_HTML = {
@@ -307,6 +320,8 @@ html.ovl #w3d,html.ovl .amb,html.ovl .prog i{visibility:hidden !important}
 .f-9x16 .t-steps,.f-1x1 .t-steps{grid-template-rows:auto auto 1fr}
 .f-1x1 .t-steps.no-vis{grid-template-rows:auto 1fr}
 ${CHARACTER_CSS}
+${STICK_CSS}
+${PROP_CSS}
 ${BACKGROUND_CSS}
 
 /* ---- 16:9 ---- */

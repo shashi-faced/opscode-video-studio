@@ -1,0 +1,45 @@
+{
+  "title": "Why Your Phone Owns Your Morning",
+  "type": "explainer",
+  "format": "16:9",
+  "look": "stickman",
+  "art": { "style": "line-art" },
+  "voice": { "voice": "en-US-AndrewMultilingualNeural" },
+  "captions": { "style": "karaoke" },
+  "music": { "style": "ambient", "volume": 0.12 },
+  "cast": [
+    { "id": "sam", "kind": "man", "name": "Sam" },
+    { "id": "riya", "kind": "woman", "name": "Riya" }
+  ],
+  "scenes": [
+    {
+      "template": "story",
+      "headline": "Your phone *owns* your morning",
+      "characters": [{ "who": "sam", "pose": "think", "mood": "worried", "position": "right" }],
+      "props": [{ "icon": "notification", "position": "far-right", "y": "air", "enter": "drop", "at": 1.2 }],
+      "narration": "You wake up, and before your feet touch the floor, your phone already has your attention."
+    },
+    {
+      "template": "story",
+      "characters": [{ "who": "sam", "pose": "idle", "mood": "sweating", "position": "center" }],
+      "props": [{ "icon": "battery-low", "position": "left", "y": "air", "enter": "wobble", "at": 0.6 }, { "icon": "alarm", "position": "right", "enter": "pop", "at": 1.6 }],
+      "text": "Twenty minutes gone. *Zero* things done.",
+      "narration": "Twenty minutes later, your energy is gone and you have done nothing you planned."
+    },
+    {
+      "template": "dialogue",
+      "characters": [{ "who": "riya", "position": "left" }, { "who": "sam", "position": "right" }],
+      "lines": [
+        { "who": "riya", "text": "Try this: keep the phone in another room tonight.", "mood": "grin" },
+        { "who": "sam", "text": "Another room? That sounds impossible.", "mood": "shocked" }
+      ]
+    },
+    {
+      "template": "story",
+      "characters": [{ "who": "sam", "pose": "cheer", "mood": "grin", "position": "left" }],
+      "props": [{ "icon": "coffee", "position": "center", "enter": "draw", "at": 0.5 }, { "icon": "trophy", "position": "right", "y": "air", "enter": "pop", "at": 1.4 }],
+      "text": "Take back your *first hour*.",
+      "narration": "One week later, his first hour belongs to him again. Coffee, a plan, and a calm start."
+    }
+  ]
+}

@@ -486,6 +486,17 @@ Findings:
 - Simulated install from a local archive: 0.94 MB to download, 45 MB installed, manifest v0.13.0 with 17 tools.
 - **Waiting on the owner:** pushing `version13` and the tag `v0.13.0`, committing the app, rebuilding it, then using Update in the store.
 
+## v0.14.0-dev: stickman look (plan 14 Phase 2) (2026-11-10)
+
+`look: "stickman"` draws stick figures in code, in 10 art styles, with props, handwriting fonts (Hindi included) and real mouth shapes in 2D.
+
+| Check | Result |
+|---|---|
+| `examples/stickman-explainer.json`, 16:9, line-art, English | renders in about 25 s; 0 layout issues; mouth shapes change through each line (28 and 17 shape changes) |
+| `examples/stickman-hindi.json`, 9:16, line-art, Hindi | 19 s; handwritten Devanagari headline and bubbles correct; kid and grandma details visible |
+| Same story in the other 9 styles | all valid; 1 layout warning (retro-tv upper-case title touches a character, which is the check working) |
+| Tests | 134 pass (9 new) |
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.

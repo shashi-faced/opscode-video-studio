@@ -21,7 +21,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.mjs",
     "example:reel": "node bin/opscode-video.mjs render examples/reel.json",
     "example:ad": "node bin/opscode-video.mjs render examples/ad.json"
   },

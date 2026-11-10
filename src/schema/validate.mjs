@@ -6,6 +6,8 @@ import path from 'node:path';
 import { TEMPLATES, COMMON_FIELDS, TOP_FIELDS, DEFAULTS, FORMATS, CHARACTER_KINDS, POSES, CHARACTER_MOODS, POSITIONS, ENTRANCES, SIZES, BACKGROUNDS, TIMES, VIDEO_TYPES } from './spec.mjs';
 import { TYPE_RECIPES, TYPE_ALIASES } from './types.mjs';
 import { PLATFORMS, PLATFORM_IDS, resolvePlatform } from './platforms.mjs';
+import { STYLE_ALIASES, ART_STYLES } from '../art/styles.mjs';
+import { resolveIcon } from '../art/props.mjs';
 import { CAPTION_STYLES, CAPTION_POSITIONS, CAPTION_TIMINGS, LOOKS, CAMERAS, LINE_SHOTS, DESIGN, NEAR_PROPS, WEATHER } from './spec.mjs';
 import { loadLibraryCharacter } from '../characters/library.mjs';
 import { KIND_ALIASES } from '../compiler/characters.mjs';
@@ -13,7 +15,7 @@ import { BACKGROUND_ALIASES, TIME_ALIASES } from '../compiler/backgrounds.mjs';
 
 const POSE_ALIASES = { standing: 'idle', stand: 'idle', still: 'idle', waving: 'wave', hello: 'wave', walking: 'walk', running: 'walk', run: 'walk', jumping: 'jump', hop: 'jump', hopping: 'jump',
   cheering: 'cheer', celebrate: 'cheer', celebrating: 'cheer', happy: 'cheer', pointing: 'point', thinking: 'think', wondering: 'think', dancing: 'dance', talking: 'talk', speaking: 'talk', sitting: 'sit', seated: 'sit', sleeping: 'idle', flying: 'idle', crying: 'idle' };
-const LOOK_ALIASES = { '3d': '3d', 'three-d': '3d', 'three d': '3d', threed: '3d', '3-d': '3d', cgi: '3d', pixar: '3d', 'pixar style': '3d', 'pixar-style': '3d', '2d': '2d', 'two-d': '2d', cartoon: '2d', flat: '2d', illustrated: '2d' };
+const LOOK_ALIASES = { stickman: 'stickman', 'stick-man': 'stickman', 'stick man': 'stickman', stick: 'stickman', 'stick figure': 'stickman', 'stick-figure': 'stickman', 'stick figures': 'stickman', stickfigure: 'stickman', 'line art': 'stickman', 'hand-drawn': 'stickman', doodle: 'stickman', '3d': '3d', 'three-d': '3d', 'three d': '3d', threed: '3d', '3-d': '3d', cgi: '3d', pixar: '3d', 'pixar style': '3d', 'pixar-style': '3d', '2d': '2d', 'two-d': '2d', cartoon: '2d', flat: '2d', illustrated: '2d' };
 const CAMERA_ALIASES = { ots: 'over-shoulder', 'over-the-shoulder': 'over-shoulder', 'over the shoulder': 'over-shoulder', mcu: 'medium-close', 'medium-close-up': 'medium-close', ecu: 'extreme-close', 'extreme-close-up': 'extreme-close', 'big-close-up': 'extreme-close', ews: 'extreme-wide', 'aerial': 'extreme-wide', 'full-shot': 'full', 'full body': 'full', tracking: 'follow', track: 'follow', 'crane down': 'crane-down', reaction: 'close', 'close-up': 'close', 'close up': 'close', closeup: 'close', 'zoom-in': 'dolly-in', 'zoom in': 'dolly-in', 'push-in': 'dolly-in', 'zoom-out': 'dolly-out', 'zoom out': 'dolly-out', 'pull-out': 'dolly-out', '360': 'orbit', 'orbit-around': 'orbit', 'two shot': 'two-shot', twoshot: 'two-shot', 'long-shot': 'wide', 'long shot': 'wide', establishing: 'wide', 'mid-shot': 'medium', 'mid shot': 'medium', pan: 'pan-right', crane: 'crane-up', default: 'auto' };
 const MOOD_ALIASES = { excited: 'happy', joyful: 'happy', smiling: 'happy', glad: 'happy', cheerful: 'happy', proud: 'happy', curious: 'surprised', shocked: 'surprised', amazed: 'surprised', wow: 'surprised',
   scared: 'worried', afraid: 'worried', nervous: 'worried', confused: 'worried', crying: 'sad', upset: 'sad', unhappy: 'sad', lonely: 'sad', mad: 'angry', furious: 'angry', tired: 'sleepy', sleeping: 'sleepy', asleep: 'sleepy', neutral: 'happy', calm: 'happy' };
@@ -24,7 +26,8 @@ const key = (v) => String(v ?? '').trim().toLowerCase().replace(/[\s_]+/g, '-');
 // warning instead of failing the storyboard: a calm default is better than another validation round.
 const POSE_GUESS = [[/sleep|nap|lie|lying|curl|rest|kneel|crouch|squat/, 'sit'], [/fly|soar|leap|hop|bounce|swim/, 'jump'], [/run|dash|chase|march|stroll|wander|swim/, 'walk'],
   [/look|gaze|watch|wonder|ponder|listen|read|study|shy|hide/, 'think'], [/clap|celebrat|happy|laugh|victory|hug/, 'cheer'], [/greet|bow|salute/, 'wave'], [/speak|explain|argue|tell|chat|say/, 'talk'], [/show|present|teach/, 'point']];
-const MOOD_GUESS = [[/shy|nervous|anxious|scared|fear|confus|unsure|thought|doubt|tense|puzzl/, 'worried'], [/curious|wonder|amaz|astonish|shock/, 'surprised'], [/tired|drows|sleep|yawn|bored/, 'sleepy'],
+const MOOD_GUESS = [[/shock|horrif|terrif|stun|aghast/, 'shocked'], [/sweat|panic|stress|overwhelm/, 'sweating'], [/frustrat|irritat|fed-?up/, 'frustrated'], [/cry|sob|weep|tear/, 'crying'], [/grin|laugh|giggl|delight|thrill|ecstat|overjoy/, 'grin'], [/disappoint|deflat|defeat|exhaust|hopeless|drained/, 'deflated'], [/suspici|skeptic|sceptic|sly|wary|distrust/, 'suspicious'],
+  [/shy|nervous|anxious|scared|fear|confus|unsure|thought|doubt|tense|puzzl/, 'worried'], [/curious|wonder|amaz|astonish|shock/, 'surprised'], [/tired|drows|sleep|yawn|bored/, 'sleepy'],
   [/cry|tear|lonely|gloom|upset|hurt|sorry/, 'sad'], [/mad|grump|annoy|frustrat|fierce|furious|stern/, 'angry']];
 const NEAR_GUESS = [[/space-?ship|rocket|boat|ship|wreck/, 'ship'], [/crater|boulder|stone|rock|cliff|moon-?rock/, 'rock'], [/panel|computer|counter|stall|cart|desk|console|workbench/, 'desk'],
   [/couch|sofa/, 'sofa'], [/chair|seat|bench|log/, 'bench'], [/bonfire|fire|camp/, 'campfire'], [/hut|home|house|cottage|door/, 'house'], [/tree|bush|forest|oak|palm/, 'tree'], [/sign|post/, 'signpost'],
@@ -140,6 +143,16 @@ export function normalise(input, warnings) {
   if (Array.isArray(input)) { warn('', 'top level was a list; treated as scenes'); return normalise({ scenes: input }, warnings); }
 
   if (typeof sb.look === 'string') { const v = aliasOf(sb.look, LOOKS, LOOK_ALIASES); if (v && v !== sb.look) { warn('look', `"${sb.look}" changed to "${v}"`); sb.look = v; } }
+  // Stickman art style: "art": { "style" }. A bare string or a style name in "look" also works.
+  if (typeof sb.art === 'string') sb.art = { style: sb.art };
+  if (typeof sb.look === 'string' && !LOOKS.includes(sb.look) && aliasOf(sb.look, ART_STYLES, STYLE_ALIASES)) { warn('look', `"${sb.look}" is a stickman art style: look "stickman", art.style "${aliasOf(sb.look, ART_STYLES, STYLE_ALIASES)}"`); sb.art = { ...(isObj(sb.art) ? sb.art : {}), style: aliasOf(sb.look, ART_STYLES, STYLE_ALIASES) }; sb.look = 'stickman'; }
+  if (isObj(sb.art)) {
+    sb.art = { ...sb.art };
+    if (typeof sb.art.style === 'string') { const v = aliasOf(sb.art.style, ART_STYLES, STYLE_ALIASES); if (v && v !== sb.art.style) { warn('art.style', `"${sb.art.style}" changed to "${v}"`); sb.art.style = v; } else if (!v) { warn('art.style', `"${sb.art.style}" is not an art style (${ART_STYLES.join(', ')}); line-art used`); sb.art.style = 'line-art'; } }
+    if (sb.look === undefined && sb.art.style) { warn('look', 'art.style is set, so look is "stickman"'); sb.look = 'stickman'; }
+    if (typeof sb.art.theme === 'string') sb.art.theme = /dark|black|night/i.test(sb.art.theme) ? 'dark' : 'light';
+  }
+  if (sb.look === 'stickman' && !(isObj(sb.art) && sb.art.style)) sb.art = { ...(isObj(sb.art) ? sb.art : {}), style: 'line-art' };
   if (typeof sb.format === 'string') {
     const f = sb.format.trim().toLowerCase();
     if (!FORMATS.includes(f) && FORMAT_ALIASES[f]) { warn('format', `"${sb.format}" changed to "${FORMAT_ALIASES[f]}"`); sb.format = FORMAT_ALIASES[f]; }
@@ -290,6 +303,18 @@ export function normalise(input, warnings) {
     if (s.template === 'story' || s.template === 'dialogue') {
       if (Array.isArray(s.characters)) s.characters = s.characters.map((c, j) => normCharacter(c, `scenes[${i}].characters[${j}]`, warn));
       if (Array.isArray(s.lines)) s.lines = s.lines.map((l, j) => normLine(l, `scenes[${i}].lines[${j}]`, warn));
+      if (Array.isArray(s.props)) s.props = s.props.flatMap((pr, j) => {
+        const o = typeof pr === 'string' ? { icon: pr } : isObj(pr) ? { ...pr } : null;
+        if (!o) return [];
+        if (o.icon === undefined && typeof (o.name || o.object || o.item) === 'string') o.icon = o.name || o.object || o.item;
+        const ic = resolveIcon(o.icon);
+        if (!ic) { warn(`scenes[${i}].props[${j}]`, `no icon for "${o.icon}"; prop left out (try phone, money, clock, bell, heart, lightbulb, chart, trophy…)`); return []; }
+        if (ic !== o.icon) o.icon = ic;
+        if (typeof o.position === 'string') { const v = aliasOf(o.position, POSITIONS, POSITION_ALIASES); if (v) o.position = v; }
+        if (typeof o.enter === 'string') { const v = aliasOf(o.enter, ['pop', 'drop', 'slide', 'draw', 'wobble', 'none'], { fall: 'drop', falls: 'drop', 'drop-in': 'drop', appear: 'pop', 'pop-in': 'pop', 'slide-in': 'slide', sketch: 'draw', 'draw-on': 'draw', shake: 'wobble' }); o.enter = v || 'pop'; }
+        if (typeof o.y === 'string' && !['ground', 'air'].includes(o.y)) o.y = /air|float|sky|up|top/.test(o.y) ? 'air' : 'ground';
+        return [o];
+      });
       if (typeof s.background === 'string') { const v = aliasOf(s.background, BACKGROUNDS, BACKGROUND_ALIASES) || BACKGROUNDS.find(b => key(s.background).includes(b)); if (v && v !== s.background) { warn(`scenes[${i}].background`, `"${s.background}" changed to "${v}"`); s.background = v; } }
       if (typeof s.look === 'string') { const v = aliasOf(s.look, LOOKS, LOOK_ALIASES); if (v && v !== s.look) { warn(`scenes[${i}].look`, `"${s.look}" changed to "${v}"`); s.look = v; } }
       if (typeof s.weather === 'string' && !WEATHER.includes(s.weather.toLowerCase())) {

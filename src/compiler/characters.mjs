@@ -7,6 +7,8 @@
 // viewer's left, a negative one toward the right.
 
 export const VIEWBOX = '-30 -50 260 350';
+// Moods only stickmen draw, shown as the nearest of the six cartoon faces.
+const MOOD_BASE = { shocked: 'surprised', frustrated: 'angry', sweating: 'worried', crying: 'sad', grin: 'happy', deflated: 'sad', suspicious: 'worried' };
 export const ASPECT = 260 / 350;
 
 const SKIN = { light: '#f6d2b8', medium: '#e3ab72', tan: '#c68642', dark: '#8d5524' };
@@ -59,9 +61,11 @@ export function shade(hex, amt) {
   return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
 }
 
-function painter(uid) {
+function painter(uid, flat = null) {
   const defs = [];
   let n = 0;
+  // Flat: plain fills with an ink outline, to sit with stickmen in a drawn style.
+  if (flat) return { defs, g: (color) => color, edge: () => flat.ink };
   return {
     defs,
     // Rounded, lit-from-top-left fill: the "3D" look.
@@ -286,8 +290,8 @@ function floater(kind, P, o) {
  */
 export function characterSvg(kind, o = {}, uid = 'c') {
   const info = KIND_INFO[kind] || KIND_INFO.rabbit;
-  const P = painter(uid);
-  const mood = o.mood || 'happy';
+  const P = painter(uid, o.flat || null);
+  const mood = MOOD_BASE[o.mood] || o.mood || 'happy';
   const opts = { ...o, mood };
   let body;
   switch (info.plan) {

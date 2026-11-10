@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { STAGE } from '../schema/spec.mjs';
 import { PLATFORMS, safePixels } from '../schema/platforms.mjs';
 import { resolveTheme, themeCss, fontFiles } from './themes.mjs';
+import { styleTheme, styleCss } from '../art/styles.mjs';
 import { TEMPLATE_HTML, TEMPLATE_CSS } from './templates.mjs';
 import { imageSize } from '../util/imagesize.mjs';
 import { stageLayout } from './backgrounds.mjs';
@@ -22,7 +23,9 @@ const FORMAT_INDEX = { '16:9': 0, '9:16': 1, '1:1': 2, '4:5': 2 };
 export function compile(storyboard, timeline, { baseDir, buildDir, progress = true }) {
   fs.mkdirSync(path.join(buildDir, 'assets'), { recursive: true });
   const stage = STAGE[storyboard.format];
-  const theme = resolveTheme(storyboard.theme, storyboard.accent);
+  // Stickman look: the art style sets colours and fonts for the whole video.
+  const stickLook = storyboard.look === 'stickman';
+  const theme = stickLook ? { ...styleTheme(storyboard.art), ...(storyboard.accent ? { accent: storyboard.accent } : {}) } : resolveTheme(storyboard.theme, storyboard.accent);
 
   // Copy each referenced file once; name by content hash so rebuilds are stable.
   const assetCache = new Map();
@@ -63,13 +66,14 @@ export function compile(storyboard, timeline, { baseDir, buildDir, progress = tr
   if (storyboard.cinematic && storyboard.format === '16:9') { safe.top = Math.max(safe.top, 150); safe.bottom = Math.max(safe.bottom, 150); }
   const cap = storyboard.captions || null;
   const cine = !!storyboard.cinematic && storyboard.format === '16:9';
-  const stageCls = [stage.cls, cap ? `cap-${cap.style} cap-${cap.position}` : '', (plat && plat.progress === false) || !progress || cine ? 'no-prog' : '', cine ? 'cine' : ''].filter(Boolean).join(' ');
+  const stageCls = [stage.cls, stickLook ? `look-stick st-${storyboard.art?.style || 'line-art'}` : '', cap ? `cap-${cap.style} cap-${cap.position}` : '', (plat && plat.progress === false) || !progress || cine ? 'no-prog' : '', cine ? 'cine' : ''].filter(Boolean).join(' ');
   const safeVars = `--st:${safe.top}px;--sb:${safe.bottom}px;--sl:${safe.left}px;--sr:${safe.right}px;--srf:${safe.rightFrom}px`;
   // 3D look (plan 12): story and dialogue scenes are drawn by the three.js world module.
   const world = {};
   const is3d = (sc) => (sc.template === 'story' || sc.template === 'dialogue') && (sc.look || storyboard.look) === '3d';
+  const isStick = (sc) => (sc.look || storyboard.look) === 'stickman';
   const scenesHtml = storyboard.scenes.map((sc, i) => {
-    const ctx = { index: i, fi: FORMAT_INDEX[storyboard.format], asset, brandLogo, format: storyboard.format, cast, layout, is3d, world };
+    const ctx = { index: i, fi: FORMAT_INDEX[storyboard.format], asset, brandLogo, format: storyboard.format, cast, layout, is3d, isStick, art: storyboard.art || { style: 'line-art' }, world };
     const inner = TEMPLATE_HTML[sc.template](sc, ctx);
     return `<section class="scene tr-${sc.transition || 'fade'}" data-i="${i}">${inner}</section>`;
   }).join('\n');
@@ -155,8 +159,8 @@ export function compile(storyboard, timeline, { baseDir, buildDir, progress = tr
 ${worldHead}<style>${fonts}
 ${themeCss(theme)}
 html,body{margin:0;background:#000}
-#stage{width:${stage.width}px;height:${stage.height}px;--ground:${layout.ground}px;--chh:${layout.chh}px;${safeVars}}
-${TEMPLATE_CSS}</style></head>
+#stage{width:${stage.width}px;height:${stage.height}px;--sh:${stage.height}px;--ground:${layout.ground}px;--chh:${layout.chh}px;${safeVars}}
+${TEMPLATE_CSS}${stickLook || storyboard.scenes.some(isStick) ? styleCss(storyboard.art || { style: 'line-art' }) : ''}</style></head>
 <body><div id="stage" class="${stageCls}" data-platform="${storyboard.platform || ''}"><div class="amb">${stars}<div class="blob"></div><div class="blob b2"></div></div>${has3d ? worldBody : ''}
 ${brand}${prog}
 ${scenesHtml}

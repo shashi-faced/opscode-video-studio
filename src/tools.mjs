@@ -7,7 +7,7 @@ import { prepare } from './pipeline.mjs';
 import { runCheck } from './qa/check.mjs';
 import { render } from './render/render.mjs';
 import { doctor } from './deps/doctor.mjs';
-import { templatesDoc, EXAMPLE, STORY_EXAMPLE, STORY_EXAMPLE_3D, resolveType } from './docs.mjs';
+import { templatesDoc, EXAMPLE, STORY_EXAMPLE, STORY_EXAMPLE_3D, STICK_EXAMPLE, resolveType } from './docs.mjs';
 import { capture } from './render/capture.mjs';
 
 // FFmpeg Editing Suite handlers
@@ -30,7 +30,7 @@ const needFile = (p) => {
 const imageData = (file) => fs.existsSync(file) ? `data:image/jpeg;base64,${fs.readFileSync(file).toString('base64')}` : undefined;
 
 export const TOOL_DEFS = [
-  { name: 'video_templates', description: 'Get the storyboard reference for one kind of video: its scene recipe, templates, fields, characters, voices and a complete example. Call once before writing a storyboard.', parameters: { type: 'object', properties: { type: { type: 'string', enum: ['ad', 'demo', 'explainer', 'story', 'reel', 'howto', 'greeting', 'announcement'], description: 'kind of video: ad, demo (app walkthrough), explainer (teach an idea), story (kids story / cartoon with characters), reel (short vertical), howto (steps), greeting (festival or birthday wishes), announcement' }, platform: { type: 'string', enum: ['youtube', 'youtube-short', 'insta-reel', 'insta-post', 'insta-story', 'whatsapp-status', 'tiktok', 'square', 'linkedin'], description: 'where the video will be posted (optional)' }, look: { type: 'string', enum: ['2d', '3d'], description: '3d for a 3D cartoon (adds the 3D guide: camera, weather, props, designed characters)' } }, required: [] } },
+  { name: 'video_templates', description: 'Get the storyboard reference for one kind of video: its scene recipe, templates, fields, characters, voices and a complete example. Call once before writing a storyboard.', parameters: { type: 'object', properties: { type: { type: 'string', enum: ['ad', 'demo', 'explainer', 'story', 'reel', 'howto', 'greeting', 'announcement'], description: 'kind of video: ad, demo (app walkthrough), explainer (teach an idea), story (kids story / cartoon with characters), reel (short vertical), howto (steps), greeting (festival or birthday wishes), announcement' }, platform: { type: 'string', enum: ['youtube', 'youtube-short', 'insta-reel', 'insta-post', 'insta-story', 'whatsapp-status', 'tiktok', 'square', 'linkedin'], description: 'where the video will be posted (optional)' }, look: { type: 'string', enum: ['2d', '3d', 'stickman'], description: '3d for a 3D cartoon (adds the 3D guide); stickman for hand-drawn stick figures in an art style (adds the stickman guide: styles, faces, props)' } }, required: [] } },
   { name: 'video_validate', description: 'Validate a storyboard JSON file. Returns errors, each with an exact fix.', parameters: { type: 'object', properties: { storyboard: { type: 'string', description: 'path to storyboard.json' } }, required: ['storyboard'] } },
   { name: 'video_preview', description: 'Build the video without rendering and run layout checks. Returns problems with fixes and a contact sheet image of every scene. Run before video_render.', parameters: { type: 'object', properties: { storyboard: { type: 'string', description: 'path to storyboard.json' } }, required: ['storyboard'] } },
   { name: 'video_render', description: 'Render the final MP4 with voiceover, music and captions. Takes 1-3 minutes.', parameters: { type: 'object', properties: { storyboard: { type: 'string', description: 'path to storyboard.json' }, out: { type: 'string', description: 'optional output .mp4 path' }, fps: { type: 'number', description: 'optional, default 30' } }, required: ['storyboard'] } },
@@ -195,7 +195,7 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
   const abs = (p) => (p ? path.resolve(cwd, String(p)) : p);
   switch (name) {
     case 'video_templates':
-      return { ok: true, text: templatesDoc(params.type, params.platform, params.look), data: { type: resolveType(params.type), example: resolveType(params.type) === 'story' ? (/3d|cgi|pixar/i.test(String(params.look || '')) ? STORY_EXAMPLE_3D : STORY_EXAMPLE) : EXAMPLE } };
+      return { ok: true, text: templatesDoc(params.type, params.platform, params.look), data: { type: resolveType(params.type), example: /^(stick|line[ -]?art)/i.test(String(params.look || '')) ? STICK_EXAMPLE : resolveType(params.type) === 'story' ? (/3d|cgi|pixar/i.test(String(params.look || '')) ? STORY_EXAMPLE_3D : STORY_EXAMPLE) : EXAMPLE } };
 
     case 'video_validate': {
       const file = abs(params.storyboard); const miss = needFile(file); if (miss) return miss;

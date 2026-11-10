@@ -1,0 +1,37 @@
+{
+  "title": "Kutta Dara Hua Kyon Hai",
+  "type": "reel",
+  "format": "9:16",
+  "look": "stickman",
+  "art": { "style": "line-art" },
+  "voice": { "voice": "hi-IN-SwaraNeural" },
+  "captions": { "style": "pop" },
+  "cast": [
+    { "id": "aman", "kind": "boy", "name": "अमन" },
+    { "id": "dadi", "kind": "grandma", "name": "दादी" }
+  ],
+  "scenes": [
+    {
+      "template": "story",
+      "headline": "क्या आपका कुत्ता *डरा* हुआ है?",
+      "characters": [{ "who": "aman", "pose": "think", "mood": "suspicious", "position": "center" }],
+      "props": [{ "icon": "dog", "position": "right", "enter": "pop", "at": 1 }],
+      "narration": "जब कुत्ता नज़रें चुराता है, तो हम सोचते हैं कि वह शर्मिंदा है।"
+    },
+    {
+      "template": "dialogue",
+      "characters": [{ "who": "dadi", "position": "left" }, { "who": "aman", "position": "right" }],
+      "lines": [
+        { "who": "dadi", "text": "बेटा, वह शर्मिंदा नहीं, डरा हुआ है।", "mood": "worried" },
+        { "who": "aman", "text": "सच में? मुझे तो पता ही नहीं था!", "mood": "shocked" }
+      ]
+    },
+    {
+      "template": "story",
+      "characters": [{ "who": "aman", "pose": "cheer", "mood": "grin", "position": "left" }],
+      "props": [{ "icon": "heart", "position": "right", "y": "air", "enter": "draw", "at": 0.5 }],
+      "text": "डांट नहीं, *प्यार* से भरोसा बनता है।",
+      "narration": "डांटने से नहीं, प्यार और धैर्य से भरोसा बनता है।"
+    }
+  ]
+}

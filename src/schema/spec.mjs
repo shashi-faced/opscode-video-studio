@@ -2,6 +2,8 @@
 // Used by the validator, the normaliser, `templates` docs and the JSON Schema export.
 
 import { PLATFORM_IDS } from './platforms.mjs';
+import { ART_STYLES } from '../art/styles.mjs';
+import { PROP_ENTERS } from '../art/props.mjs';
 
 export const FORMATS = ['16:9', '9:16', '1:1', '4:5'];
 export const CAPTION_STYLES = ['line', 'karaoke', 'pop'];
@@ -23,7 +25,7 @@ export const CHARACTER_KINDS = [
 ];
 export const POSES = ['idle', 'wave', 'walk', 'jump', 'cheer', 'point', 'think', 'dance', 'sit', 'talk'];
 // 3D look (plan 12): how the scene is drawn and how the camera films it.
-export const LOOKS = ['2d', '3d'];
+export const LOOKS = ['2d', '3d', 'stickman'];
 // Any character in 3D (plan 12, Phase 6): a design made only of choices from these lists.
 export const DESIGN = {
   plan: ['biped', 'animal', 'quadruped', 'bird', 'fish', 'snake', 'blob', 'robot'],
@@ -44,7 +46,8 @@ export const NEAR_PROPS = ["sofa", "tree", "tree-large", "house", "tent", "campf
 export const CAMERAS = ['auto', 'extreme-wide', 'wide', 'full', 'medium', 'medium-close', 'close', 'extreme-close', 'two-shot', 'over-shoulder', 'dolly-in', 'dolly-out', 'orbit', 'pan-left', 'pan-right', 'crane-up', 'crane-down', 'follow'];
 // Per spoken line (3D): the director picks automatically; these force a shot for that line.
 export const LINE_SHOTS = ['auto', 'close', 'medium-close', 'over-shoulder', 'two-shot', 'medium', 'wide', 'reaction'];
-export const CHARACTER_MOODS = ['happy', 'sad', 'surprised', 'angry', 'worried', 'sleepy'];
+// The last seven are drawn by stickmen; cartoon and 3D characters show the nearest of the first six.
+export const CHARACTER_MOODS = ['happy', 'sad', 'surprised', 'angry', 'worried', 'sleepy', 'shocked', 'frustrated', 'sweating', 'crying', 'grin', 'deflated', 'suspicious'];
 export const POSITIONS = ['far-left', 'left', 'center', 'right', 'far-right'];
 export const ENTRANCES = ['none', 'walk-in', 'pop', 'fly-in', 'fade'];
 export const SIZES = ['small', 'medium', 'large'];
@@ -78,7 +81,7 @@ const enm = (values, extra = {}) => ({ type: 'enum', values, ...extra });
 const character = obj({
   who: str(24, { required: true, doc: 'cast id, or a character kind like "rabbit"' }),
   pose: enm(POSES, { doc: 'what it does: idle, wave, walk, jump, cheer, point, think, dance, sit, talk' }),
-  mood: enm(CHARACTER_MOODS, { doc: 'face: happy, sad, surprised, angry, worried, sleepy' }),
+  mood: enm(CHARACTER_MOODS, { doc: 'face: happy, sad, surprised, angry, worried, sleepy (stickman also: shocked, frustrated, sweating, crying, grin, deflated, suspicious)' }),
   position: enm(POSITIONS, { doc: 'where it stands; leave empty to spread characters evenly' }),
   facing: enm(['left', 'right'], { doc: 'which way it looks' }),
   enter: enm(ENTRANCES, { doc: 'how it appears: walk-in, pop, fly-in, fade' }),
@@ -86,6 +89,15 @@ const character = obj({
   near: enm(NEAR_PROPS, { doc: '3D only: a prop placed next to this character, e.g. tent, sofa, tree, desk, bed, campfire' }),
 });
 // One spoken line: the character says it in its own voice, with a speech bubble.
+const prop = obj({
+  icon: str(30, { required: true, doc: 'what it is: phone, money, clock, battery-low, bell, lightbulb, heart, cage, chart, trophy, coffee, bed, tv… (stickman look)' }),
+  position: enm(POSITIONS, { doc: 'where it stands; default beside the characters' }),
+  y: enm(['ground', 'air'], { doc: 'on the ground (default) or floating in the air' }),
+  size: enm(SIZES),
+  enter: enm(PROP_ENTERS, { doc: 'pop (default), drop, slide, draw (drawn line by line), wobble, none' }),
+  at: num(0, 60, { doc: 'seconds into the scene when it appears' }),
+});
+
 const line = obj({
   who: str(24, { required: true, doc: 'cast id of the speaker' }),
   text: str(140, { required: true, soft: 90, doc: 'what the character says: one short sentence' }),
@@ -187,7 +199,8 @@ export const TEMPLATES = {
       kicker: str(40, { doc: 'small label above the headline' }),
       text: str(140, { soft: 100, doc: 'one storybook line shown on screen (optional)' }),
       lines: list(line, 6, { doc: 'characters speaking, each in their own voice (optional)' }),
-      look: enm(LOOKS, { doc: '2d or 3d for this scene; normally set once at the top' }),
+      look: enm(LOOKS, { doc: '2d, 3d or stickman for this scene; normally set once at the top' }),
+      props: list(prop, 6, { doc: 'stickman look: objects beside the characters (phone, money, clock…)' }),
       weather: enm(WEATHER, { doc: '3D only: rain, snow, leaves, fireflies, sparkles' }),
       camera: enm(CAMERAS, { doc: '3D only: wide, medium, close, two-shot, dolly-in, dolly-out, orbit, pan-left, pan-right, crane-up; default auto' }),
     },
@@ -201,6 +214,7 @@ export const TEMPLATES = {
       characters: list(character, 4, { doc: 'who is on screen; defaults to the speakers' }),
       lines: list(line, 6, { required: true, min: 1, doc: '1-6 lines in order' }),
       look: enm(LOOKS),
+      props: list(prop, 6, { doc: 'stickman look: objects beside the characters' }),
       weather: enm(WEATHER),
       camera: enm(CAMERAS, { doc: '3D only; default auto: medium shot, then a close-up on each speaker' }),
     },
@@ -237,7 +251,8 @@ export const TOP_FIELDS = {
   platform: enm(PLATFORM_IDS, { doc: 'where it will be posted: sets frame size, safe zones, caption style and extra files (thumbnail, cover, chapters)' }),
   format: enm(FORMATS, { doc: '16:9 YouTube/website, 9:16 Reels/Shorts, 1:1 square, 4:5 feed post. Usually set by "platform"' }),
   theme: enm(THEMES),
-  look: enm(LOOKS, { doc: '2d (illustrated cartoon, default) or 3d (3D characters and worlds) for story and dialogue scenes' }),
+  look: enm(LOOKS, { doc: '2d (illustrated cartoon, default), 3d (3D characters and worlds), or stickman (hand-drawn stick figures in an art style)' }),
+  art: obj({ style: enm(ART_STYLES, { doc: 'stickman art style' }), theme: enm(['light', 'dark'], { doc: 'classic-bw only: black on white (light) or white on black (dark)' }) }, { doc: 'look "stickman": { "style": "line-art" | "classic-bw" | "modern-pop" | "retro-tv" | "cozy-color" | "cozy-story" | "prehistoric" | "historical" | "amber-noir" | "noir-thriller" }' }),
   models: enm(['auto', 'built-in', 'pack'], { doc: '3D only: auto uses the best downloaded models where installed; built-in = characters made in code for everyone; pack = downloaded models for every kind that has one' }),
   scenery: enm(['auto', 'built-in'], { doc: '3D only: auto uses the downloaded world pack (furniture, trees, houses, buildings) where installed; built-in = places made in code' }),
   cinematic: { type: 'bool', doc: '3D, 16:9: film look with 2.39:1 letterbox bars and a gentle hand-held camera' },

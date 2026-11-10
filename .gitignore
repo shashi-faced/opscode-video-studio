@@ -5,3 +5,4 @@ out/
 *.tgz
 eval/3d/runs/
 eval/asr/runs/
+eval/art/runs/

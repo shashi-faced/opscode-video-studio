@@ -59,6 +59,24 @@ Set `"platform"` to where the video will be posted. It sets the frame size, keep
 - Characters' mouths rest wherever the voice audio is quiet, so lip-sync looks natural in fluent Hindi as well as English.
  Captions are timed to the spoken words using the voice's word timings: `pop` shows 1–3 big words at a time (reels), `karaoke` lights up the word being spoken. Examples: [insta-reel.json](examples/insta-reel.json), [youtube-ad.json](examples/youtube-ad.json). Every render also writes `<title>.srt` and `<title>.vtt` next to the MP4, with the same caption chunks. Upload them with the video; the `.vtt` carries per-word times. Lines are at most 42 characters, or 32 on 9:16 and 4:5 frames, with at most 2 lines per cue.
 
+## Stickman look
+
+`"look": "stickman"` with `"art": { "style": "…" }` draws the whole video as hand-drawn stick figures, free and offline.
+
+- **Ten styles:** `line-art`, `classic-bw` (light, or `"theme": "dark"`), `modern-pop`, `retro-tv`, `cozy-color`, `cozy-story`, `prehistoric`, `historical`, `amber-noir`, `noir-thriller`.
+- **People** (boy, girl, man, woman, grandpa, grandma) become stickmen with:
+  - a hand-drawn line;
+  - 13 faces: happy, sad, surprised, angry, worried, sleepy, shocked, frustrated, sweating, crying, grin, deflated, suspicious;
+  - family details: hair, a bun, glasses, kids drawn smaller;
+  - real mouth shapes that follow the voice;
+  - every pose, walk and entrance.
+- **Animals** keep their shapes, drawn flat in ink.
+- **Props:** `"props": [{ "icon": "phone", "enter": "drop" }]` puts objects next to the characters, from 144 icons (Lucide, ISC) with plain-word aliases like money, idea, deadline and notification. They can pop, drop, slide, draw themselves or wobble.
+- **Text:** handwriting fonts Caveat and Kalam (Kalam includes Devanagari), so Hindi headlines look handwritten too. Highlighted words get a self-drawing underline.
+- **Painted scenes** from an image model come later (plan 14 Phase 3).
+
+Examples: [stickman-explainer.json](examples/stickman-explainer.json) (16:9, English) and [stickman-hindi.json](examples/stickman-hindi.json) (9:16, Hindi).
+
 ## Captions on any video
 
 `video_captions` (CLI: `captions`) adds word-by-word captions to a video that was not made here: recorded, uploaded, or cut with the editing tools.
@@ -180,6 +198,7 @@ src/audio/            tts, synth, mix, wav
 src/qa/               layout checks + contact sheet
 src/deps/             locate Chrome/ffmpeg, doctor
 src/edit/             editing any video file: trim, concat, mix, reframe, inspect, gif
+src/art/              stickman art styles, props (icons)
 examples/             reel.json (9:16), ad.json (16:9), free-model-diwali.json
 plans/                design and phase plans
 ```

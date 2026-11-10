@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 // Human/LLM-readable docs generated from the spec, so docs never drift from the validator.
 // templatesDoc(type) returns only what that kind of video needs, which keeps it short for small models.
 import { DESIGN } from './schema/spec.mjs';
@@ -58,6 +59,9 @@ export const STORY_EXAMPLE = {
 };
 
 // A short 3D story: a designed character, auto camera, weather, a prop and lip-synced dialogue.
+// Stickman example (examples/stickman-explainer.json), returned by video_templates with look "stickman".
+export const STICK_EXAMPLE = JSON.parse(fs.readFileSync(new URL('../examples/stickman-explainer.json', import.meta.url), 'utf8'));
+
 export const STORY_EXAMPLE_3D = {
   version: 1,
   type: 'story',
@@ -97,7 +101,9 @@ export function templatesDoc(type, platform, look) {
   const t = resolveType(type);
   const pl = resolvePlatform(platform);
   const recipe = t ? TYPE_RECIPES[t] : null;
-  const names = recipe ? recipe.templates : Object.keys(TEMPLATES);
+  const isStick = /^(stick|line[ -]?art|hand[ -]?drawn|doodle)/i.test(String(look || '').trim());
+  // Stickman explainers tell the idea with characters too, so story and dialogue scenes are always offered.
+  const names = [...new Set([...(recipe ? recipe.templates : Object.keys(TEMPLATES)), ...(isStick ? ['story', 'dialogue'] : [])])];
   const usesCharacters = names.some(n => n === 'story' || n === 'dialogue');
   const out = [];
   out.push('# Video Studio storyboard reference');
@@ -126,6 +132,16 @@ export function templatesDoc(type, platform, look) {
   }
   out.push('- captions: true | false | { "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top" }. pop = 1-3 big words at a time, timed to the voice (reels); karaoke = the spoken word lights up.');
 
+  if (isStick) {
+    out.push('\n## Stickman look');
+    out.push('- Set "look": "stickman" and "art": { "style": "<style>" }. Styles: line-art (hand-drawn ink on paper; explainers), classic-bw (black on white, or "theme": "dark"; concepts), modern-pop (beanie and yellow shirt, clean studio; tech, AI tools), retro-tv (white glowing figures on a dark screen; science facts, mysteries), cozy-color (soft colour rooms; habits, psychology), cozy-story (colourful everyday places; feelings), prehistoric (caves, earthy; satire, fables), historical (period places; history), amber-noir (orange hood, night city; what-if stories), noir-thriller (night, white gloves; survival rules, suspense).');
+    out.push('- People (boy, girl, man, woman, grandpa, grandma) are drawn as stickmen; animals keep their shape in flat ink. Lip-sync, poses and walking work as usual.');
+    out.push('- Tell the idea with a character acting it plus 1-2 props, and short big text: story scenes with "headline" (opening) or "text" (one short line with *stars*), dialogue scenes for two people. Change the picture every 2-4 seconds; one idea per scene.');
+    out.push(`- Faces: ${CHARACTER_MOODS.join(', ')}. Use strong ones (shocked, sweating, frustrated, grin, deflated, suspicious) so the emotion reads at a glance.`);
+    out.push('- Props: story/dialogue scene "props": [{ "icon": "phone", "position": "right", "y": "ground"|"air", "enter": "pop"|"drop"|"slide"|"draw"|"wobble", "at": 1.2 }]. Icons by plain words: phone, money, coins, clock, alarm, battery-low, bell, notification, lightbulb, brain, heart, broken-heart, chart, growth, loss, trophy, target, rocket, coffee, bed, laptop, tv, mail, chat, calendar, book, briefcase, house, car, gift, fire, warning, lock, key, shield, users, dog, cat, food, pizza, sun, moon, rain, tree, globe, crown, sword, skull, ghost, siren…');
+    out.push('- backgrounds and time matter only for cozy-color, cozy-story, prehistoric, historical, amber-noir and noir-thriller; the paper styles draw a plain page.');
+    out.push('- Example scene: { "template": "story", "characters": [{ "who": "sam", "pose": "think", "mood": "sweating", "position": "center" }], "props": [{ "icon": "battery-low", "position": "left", "y": "air", "enter": "wobble" }], "text": "Twenty minutes gone. *Zero* things done.", "narration": "…" }');
+  }
   if (usesCharacters) {
     if (!is3d) {
       out.push('\n## 3D look (optional)');

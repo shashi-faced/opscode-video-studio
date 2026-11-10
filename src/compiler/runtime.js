@@ -85,7 +85,12 @@
     const t = ms / 1000;
     for (const w of el.querySelectorAll('.chwrap')) {
       const who = w.dataset.who;
-      w.classList.toggle('talking', parts.some(p => p.kind === 'line' && p.who === who && t >= p.start && t < p.end));
+      const p = parts.find(p => p.kind === 'line' && p.who === who && t >= p.start && t < p.end);
+      w.classList.toggle('talking', !!p);
+      // Mouth shape from the line's viseme track (stickmen draw one mouth per shape).
+      let vis = '';
+      if (p && p.visemes) for (const [vt, shape] of p.visemes) { if (vt <= t) vis = shape; else break; }
+      if (w.dataset.vis !== vis) w.dataset.vis = vis;
     }
     const lines = parts.filter(p => p.kind === 'line');
     lines.forEach((p, k) => {
