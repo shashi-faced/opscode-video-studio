@@ -235,7 +235,7 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
         const r = await render(file, { out: abs(params.out), fps: params.fps ? Number(params.fps) : undefined, workers: params.workers ? Number(params.workers) : undefined, onProgress });
         return {
           ok: true,
-          text: `Video rendered: ${r.file}\n${r.width}×${r.height} ${r.format}${r.platform ? ` for ${r.platform}` : ''}, ${r.duration.toFixed(1)} s, ${r.sizeMB} MB, voice: ${r.voice}, music: ${r.music}, captions: ${r.captions}. Took ${r.seconds} s.${speedText(r)}\nPoster frame: ${r.poster}${extrasText(r.extras)}${r.lengthNote ? `\nNote: ${r.lengthNote}` : ''}\nTell the user where the file is${r.extras && Object.keys(r.extras).length ? ' and list the extra files' : ''}.`,
+          text: `Video rendered: ${r.file}\n${r.width}×${r.height} ${r.format}${r.platform ? ` for ${r.platform}` : ''}, ${r.duration.toFixed(1)} s, ${r.sizeMB} MB, voice: ${r.voice}, music: ${r.music}, captions: ${r.captions}. Took ${r.seconds} s.${speedText(r)}\nPoster frame: ${r.poster}${extrasText(r.extras)}${r.lengthNote ? `\nNote: ${r.lengthNote}` : ''}${r.captionTiming ? `\nCaption timing: ${r.captionTiming}` : ''}\nTell the user where the file is${r.extras && Object.keys(r.extras).length ? ' and list the extra files' : ''}.`,
           image: r.poster ? imageData(r.poster) : undefined,
           imageFile: r.poster || undefined,
           data: r,
@@ -255,7 +255,7 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
         const mins = (s) => (s >= 60 ? `${Math.floor(s / 60)} min ${Math.round(s % 60)} s` : `${Math.round(s)} s`);
         return {
           ok: true,
-          text: `Film rendered: ${r.file}\n${r.width}×${r.height}, ${mins(r.duration)}, ${r.sequences} sequence(s), ${r.shots} shots (${r.rendered} rendered, ${r.cached} reused), ${r.workers} workers, ${r.sizeMB} MB. Took ${mins(r.seconds)}.${r.srt ? `\nSubtitles: ${r.srt}${r.vtt ? ` and ${r.vtt}` : ''}` : ''}${r.chapters ? `\nChapters: ${r.chapters}` : ''}\nProject folder: ${r.project}\nTell the user where the file is.`,
+          text: `Film rendered: ${r.file}\n${r.width}×${r.height}, ${mins(r.duration)}, ${r.sequences} sequence(s), ${r.shots} shots (${r.rendered} rendered, ${r.cached} reused), ${r.workers} workers, ${r.sizeMB} MB. Took ${mins(r.seconds)}.${r.srt ? `\nSubtitles: ${r.srt}${r.vtt ? ` and ${r.vtt}` : ''}` : ''}${r.chapters ? `\nChapters: ${r.chapters}` : ''}${r.captionTiming ? `\nCaption timing: ${r.captionTiming}` : ''}\nProject folder: ${r.project}\nTell the user where the file is.`,
           image: r.poster ? imageData(r.poster) : undefined,
           imageFile: r.poster || undefined,
           data: r,

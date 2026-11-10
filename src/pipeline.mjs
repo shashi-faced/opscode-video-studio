@@ -31,18 +31,19 @@ export async function prepare(storyboardFile, { voice = 'auto', onProgress = () 
   fs.mkdirSync(buildDir, { recursive: true });
 
   let voices = storyboard.scenes.map(() => null);
-  let voiceNote = null;
+  let voiceNote = null, timingNote = null;
   if (voice !== 'skip' && storyboard.voice?.provider !== 'none' && synthesize) {
     try {
       voices = await synthesize(storyboard, { onProgress });
+      if (voices.notes?.length) { timingNote = voices.notes.join('; '); for (const n of voices.notes) onProgress({ stage: 'voice', note: n }); }
     } catch (e) {
       voiceNote = `voice skipped: ${e.message}`;
       onProgress({ stage: 'voice', warning: voiceNote });
       voices = storyboard.scenes.map(() => null);
     }
   }
-  const timeline = buildTimeline(storyboard, voices.map(x => x?.seconds ?? null), voices.map(x => x?.parts ?? null), voices.map(x => x?.words ?? null), voices.map(x => x?.partWords ?? null));
+  const timeline = buildTimeline(storyboard, voices.map(x => x?.seconds ?? null), voices.map(x => x?.parts ?? null), voices.map(x => x?.words ?? null), voices.map(x => x?.partWords ?? null), voices.map(x => x?.partQuiet ?? null));
   fs.writeFileSync(path.join(buildDir, 'timeline.json'), JSON.stringify(timeline, null, 2));
   const build = compile(storyboard, timeline, { baseDir, buildDir });
-  return { storyboard, warnings: v.warnings, baseDir, outDir, buildDir, timeline, build, voices, voiceNote };
+  return { storyboard, warnings: v.warnings, baseDir, outDir, buildDir, timeline, build, voices, voiceNote, timingNote };
 }

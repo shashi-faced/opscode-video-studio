@@ -86,9 +86,11 @@ export function wordShapes(word) {
  * @param tokens [{ text }] the words as written
  * @param times  [[start, end]] seconds (absolute) for each token
  * @param end    end of the line (seconds); the mouth rests after it
+ * @param quiet  [[start, end]] absolute seconds where the voice audio is quiet: the mouth closes there
+ *               (fluent speech, e.g. Hindi, has few pauses between words, so word times alone keep it open)
  * @returns [[t, shape], ...] sorted, each shape held until the next entry
  */
-export function visemeTrack(tokens, times, end) {
+export function visemeTrack(tokens, times, end, quiet = []) {
   const segs = [];
   tokens.forEach((tok, k) => {
     const [s, e] = times[k];
@@ -113,6 +115,47 @@ export function visemeTrack(tokens, times, end) {
       if (!VOWEL.has(x)) continue;
     }
     out.push([+t.toFixed(3), x]);
+  }
+  return quiet && quiet.length ? applyQuiet(out, quiet, end) : out;
+}
+
+/**
+ * Rest the mouth (X) wherever the voice is quiet; elsewhere keep the track's shape.
+ * Open stretches shorter than 40 ms left between quiet spans are closed too (they only flicker).
+ */
+export function applyQuiet(track, quiet, end) {
+  if (!track.length) return track;
+  const t0 = track[0][0];
+  const q = quiet.map(([a, b]) => [Math.max(t0, a), Math.min(end, b)]).filter(([a, b]) => b > a);
+  if (!q.length) return track;
+  const shapeAt = (t) => { let x = 'X'; for (const [a, s] of track) { if (a <= t + 1e-9) x = s; else break; } return x; };
+  const inQuiet = (t) => q.some(([a, b]) => t >= a - 1e-9 && t < b - 1e-9);
+  const pts = [...new Set([...track.map(x => x[0]), ...q.flat()])].filter(t => t <= end + 1e-9).sort((a, b) => a - b);
+  let out = [];
+  for (const t of pts) {
+    const x = inQuiet(t) ? 'X' : shapeAt(t);
+    if (out.length && out.at(-1)[1] === x) continue;
+    out.push([+t.toFixed(3), x]);
+  }
+  // Drop open stretches shorter than 40 ms that sit between rests.
+  out = out.filter(([t, x], i) => {
+    if (x === 'X' || i === 0) return true;
+    const next = out[i + 1] ? out[i + 1][0] : end;
+    return !(next - t < 0.04 && out[i - 1][1] === 'X' && (!out[i + 1] || out[i + 1][1] === 'X'));
+  });
+  const merged = [];
+  for (const e of out) if (!merged.length || merged.at(-1)[1] !== e[1]) merged.push(e);
+  return merged;
+}
+
+/** Quiet stretches (≥ minQuiet s) of a voice clip, in seconds from its start. */
+export function quietSpans(rms, thr, hop = 0.01, minQuiet = 0.06) {
+  const out = [];
+  let q0 = null;
+  for (let f = 0; f <= rms.length; f++) {
+    const quiet = f < rms.length && rms[f] <= thr;
+    if (quiet && q0 == null) q0 = f;
+    if (!quiet && q0 != null) { if ((f - q0) * hop >= minQuiet) out.push([+(q0 * hop).toFixed(3), +(f * hop).toFixed(3)]); q0 = null; }
   }
   return out;
 }

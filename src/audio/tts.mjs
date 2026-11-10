@@ -6,8 +6,11 @@ import crypto from 'node:crypto';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { HOME_DIR } from '../deps/locate.mjs';
 import { decodeMono, trimSilenceLead, normalisePeak, SR } from './wav.mjs';
-import { speechParts, PART_GAP } from '../timeline.mjs';
+import { speechParts, PART_GAP, captionTokens } from '../timeline.mjs';
 import { KIND_INFO } from '../compiler/characters.mjs';
+import { loudness, levels } from '../asr/audio.mjs';
+import { quietSpans } from './visemes.mjs';
+import { matchRate } from '../captions/align.mjs';
 
 // Character voices follow the narrator's language; age sets pitch and speed.
 const VOICE_BY_LANG = {
@@ -123,11 +126,28 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
   const gap = new Float32Array(Math.round(PART_GAP * SR));
   // Narration word timings drive the captions.
   const needWords = storyboard.captions !== false;
+  // captions.timing: tts (voice word times only), whisper (always listen), auto (listen where the voice
+  // gave no word times or they match the text badly). Listening needs the Whisper small model.
+  const timing = storyboard.captions && typeof storyboard.captions === 'object' ? storyboard.captions.timing || 'auto' : 'auto';
+  const lang = String(voice).slice(0, 2).toLowerCase();
+  const notes = [];
+  let listener;   // undefined: not checked yet; null: cannot listen
+  const listen = async () => {
+    if (listener !== undefined) return listener;
+    try {
+      const { modelReady } = await import('../asr/models.mjs');
+      if (!modelReady('small')) { notes.push('caption timing: the Whisper model is not installed, so the voice\'s own word times were used (video_assets install whisper-small)'); return (listener = null); }
+      const { transcribe } = await import('../asr/transcribe.mjs');
+      return (listener = transcribe);
+    } catch (e) { notes.push(`caption timing: listening failed (${e.message}); the voice's own word times were used`); return (listener = null); }
+  };
+  let heardParts = 0;
   for (const sc of storyboard.scenes) {
     const parts = speechParts(sc);
     if (!parts.length) { out.push(null); continue; }
     const clips = [];
     const partWords = [];
+    const partQuiet = [];
     let file = null, words = null;
     for (const p of parts) {
       const v = p.kind === 'line' ? voices.get(p.who) : { voice, rate, pitch: null };
@@ -135,6 +155,9 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
       const clip = await speakCached(v.voice, v.rate, v.pitch, speakable(p.text), p.kind === 'line' || needWords);
       clips.push(clip.samples);
       partWords.push(clip.words);
+      // Where this clip is quiet: the speaker's mouth rests there (lip-sync), whatever the language.
+      if (p.kind === 'line') { const rms = loudness(clip.samples, SR); partQuiet.push(quietSpans(rms, levels(rms).thr)); }
+      else partQuiet.push(null);
       if (p.kind === 'narration') words = clip.words;
       file = file || clip.file;
       onProgress({ stage: 'voice', done: ++done, total });
@@ -143,7 +166,33 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
     const samples = new Float32Array(len);
     let o = 0;
     clips.forEach((c, j) => { samples.set(c, o); o += c.length + (j < clips.length - 1 ? gap.length : 0); });
-    out.push({ samples, seconds: +(samples.length / SR).toFixed(3), parts: clips.map(c => +(c.length / SR).toFixed(3)), file, words, partWords });
+    // Listen to the whole scene once (Whisper pads short audio to 30 s, so one call per scene, not per line).
+    const need = parts.map((p, j) => {
+      if (timing === 'tts' || !(p.kind === 'line' || needWords)) return false;
+      if (timing === 'whisper') return true;
+      return !partWords[j] || matchRate(captionTokens(p.text), partWords[j]) < 0.8;
+    });
+    if (need.some(Boolean) && await listen()) {
+      try {
+        const pcm16 = new Float32Array(Math.floor(samples.length / 3));
+        for (let k = 0; k < pcm16.length; k++) pcm16[k] = (samples[3 * k] + samples[3 * k + 1] + samples[3 * k + 2]) / 3;
+        const keep = parts.flatMap(p => captionTokens(p.text).map(t => t.text));
+        const heard = (await listener({ pcm: pcm16 }, { language: lang, keep })).words;
+        let off = 0;
+        parts.forEach((p, j) => {
+          const len = clips[j].length / SR;
+          if (need[j]) {
+            const mine = heard.filter(w => w.start >= off - 0.05 && w.start < off + len + PART_GAP / 2)
+              .map(w => ({ text: w.text, start: +Math.max(0, w.start - off).toFixed(3), end: +Math.min(len, w.end - off).toFixed(3) }));
+            if (mine.length) { partWords[j] = mine; if (p.kind === 'narration') words = mine; heardParts++; }
+          }
+          off += len + PART_GAP;
+        });
+      } catch (e) { notes.push(`caption timing: listening failed (${e.message}); the voice's own word times were used`); listener = null; }
+    }
+    out.push({ samples, seconds: +(samples.length / SR).toFixed(3), parts: clips.map(c => +(c.length / SR).toFixed(3)), file, words, partWords, partQuiet });
   }
+  if (heardParts) notes.push(`caption timing: ${heardParts} spoken part(s) timed by listening (Whisper)`);
+  out.notes = notes;
   return out;
 }

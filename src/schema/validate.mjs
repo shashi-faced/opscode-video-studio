@@ -6,7 +6,7 @@ import path from 'node:path';
 import { TEMPLATES, COMMON_FIELDS, TOP_FIELDS, DEFAULTS, FORMATS, CHARACTER_KINDS, POSES, CHARACTER_MOODS, POSITIONS, ENTRANCES, SIZES, BACKGROUNDS, TIMES, VIDEO_TYPES } from './spec.mjs';
 import { TYPE_RECIPES, TYPE_ALIASES } from './types.mjs';
 import { PLATFORMS, PLATFORM_IDS, resolvePlatform } from './platforms.mjs';
-import { CAPTION_STYLES, CAPTION_POSITIONS, LOOKS, CAMERAS, LINE_SHOTS, DESIGN, NEAR_PROPS, WEATHER } from './spec.mjs';
+import { CAPTION_STYLES, CAPTION_POSITIONS, CAPTION_TIMINGS, LOOKS, CAMERAS, LINE_SHOTS, DESIGN, NEAR_PROPS, WEATHER } from './spec.mjs';
 import { loadLibraryCharacter } from '../characters/library.mjs';
 import { KIND_ALIASES } from '../compiler/characters.mjs';
 import { BACKGROUND_ALIASES, TIME_ALIASES } from '../compiler/backgrounds.mjs';
@@ -245,6 +245,12 @@ export function normalise(input, warnings) {
       c = { ...c };
       if (typeof c.style === 'string') { const v = aliasOf(c.style, CAPTION_STYLES, CAPTION_ALIASES); if (v && v !== c.style) { warn('captions.style', `"${c.style}" changed to "${v}"`); c.style = v; } }
       if (typeof c.position === 'string') { const v = aliasOf(c.position, CAPTION_POSITIONS, { center: 'middle', centre: 'middle', mid: 'middle', down: 'bottom', up: 'top' }); if (v) c.position = v; }
+      if (c.timing !== undefined) {
+        const v = aliasOf(String(c.timing), CAPTION_TIMINGS, { accurate: 'whisper', listen: 'whisper', heard: 'whisper', asr: 'whisper', voice: 'tts', fast: 'tts', edge: 'tts', default: 'auto' });
+        if (v) { if (v !== c.timing) warn('captions.timing', `"${c.timing}" changed to "${v}"`); c.timing = v; }
+        else { warn('captions.timing', `"${c.timing}" is not a timing (auto, tts, whisper); auto used`); c.timing = 'auto'; }
+      }
+      if (c.lines !== undefined && typeof c.lines !== 'boolean') { const b = /^(true|yes|on|1)$/i.test(String(c.lines)); warn('captions.lines', `"${c.lines}" read as ${b}`); c.lines = b; }
       if (c.style === undefined) c.style = plat?.captions?.style || 'line';
       if (c.position === undefined) c.position = 'bottom';
       sb.captions = c;

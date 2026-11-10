@@ -143,22 +143,28 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
 
   // 1. Voice for every shot (each clip is cached on disk by text and voice), several batches at once.
   let voices = sb.scenes.map(() => null);
-  let voiceNote = null;
+  let voiceNote = null, timingNote = null;
   if (voice !== 'skip' && sb.voice?.provider !== 'none') {
     const batches = [];
     for (let i = 0; i < sb.scenes.length; i += 6) batches.push(i);
     let doneShots = 0;
     const failed = [];
+    const timingNotes = [];
+    let heardParts = 0;
     await pool(batches, 4, async (from) => {
       const scenes = sb.scenes.slice(from, from + 6);
       try {
         const res = await synthesize({ ...sb, scenes });
         res.forEach((r, k) => { voices[from + k] = r; });
+        for (const n of res.notes || []) if (!timingNotes.includes(n) && !/part\(s\) timed/.test(n)) timingNotes.push(n);
+        heardParts += +((res.notes || []).find(n => /part\(s\) timed/.test(n))?.match(/(\d+) spoken/)?.[1] || 0);
       } catch (e) { failed.push(`${shotRefs[from].id}…: ${e.message}`); }
       doneShots += scenes.length;
       onProgress({ stage: 'voice', done: doneShots, total: sb.scenes.length });
     });
     if (failed.length) { voiceNote = `voice missing for some shots (${failed[0]})`; onProgress({ stage: 'voice', warning: voiceNote }); }
+    if (heardParts) timingNotes.push(`caption timing: ${heardParts} spoken part(s) timed by listening (Whisper)`);
+    if (timingNotes.length) timingNote = timingNotes.join('; ');
   }
 
   // 2. Build every shot's page and work out its hash and length.
@@ -173,7 +179,7 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
     else if (prev) scene._prevPlace = '';
     const mini = { ...sb, scenes: [scene] };
     const vo = voices[i];
-    const timeline = buildTimeline(mini, [vo?.seconds ?? null], [vo?.parts ?? null], [vo?.words ?? null], [vo?.partWords ?? null]);
+    const timeline = buildTimeline(mini, [vo?.seconds ?? null], [vo?.parts ?? null], [vo?.words ?? null], [vo?.partWords ?? null], [vo?.partQuiet ?? null]);
     const build = compile(mini, timeline, { baseDir, buildDir: path.join(dir, 'build'), progress: false });
     const html = fs.readFileSync(build.file, 'utf8');
     const frames = Math.max(1, Math.round(timeline.duration * fps));
@@ -299,6 +305,7 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
     poster: fs.existsSync(poster) ? poster : null,
     srt,
     vtt,
+    ...(timingNote ? { captionTiming: timingNote } : {}),
     chapters: chaptersFile,
     duration: filmTimeline.duration,
     fps,

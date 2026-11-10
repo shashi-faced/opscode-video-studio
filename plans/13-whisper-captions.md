@@ -349,7 +349,38 @@ Original scope:
 - A short `captionsDoc` in `docs.mjs` (under 1 KB) that tells the agent when to use it: "add subtitles", "word by word captions", "caption my reel".
 - Re-burn from an edited `words.json` without listening again.
 
-### Phase 6: Generated videos use Whisper (~1.5 days)
+### Phase 6: Generated videos use Whisper ✅ (2026-11-10, branch `version13`)
+Built:
+- `captions.timing` (`auto` | `tts` | `whisper`; aliases accurate, listen, heard → whisper; voice, fast → tts) and `captions.lines` in `spec.mjs` and `validate.mjs`.
+- `synthesize()`:
+  - with `auto`, it listens only where a part's voice timings are missing, or match fewer than 80% of its words;
+  - with `whisper`, it always listens;
+  - it listens to the **whole scene's voice track once** (48 kHz averaged down to 16 kHz), not each clip, then splits the heard words back into parts;
+  - without the model it falls back to the voice timings with a note, and the render never fails.
+- Renders and films report `captionTiming`.
+- `timeline.mjs` builds dialogue captions when `lines: true`.
+- `transcribe()` loads a model once even when film batches call it in parallel, and runs one listening job at a time.
+- `test/timing.test.mjs`: 8 tests. Its listening tests use a private home with a seeded voice cache, so no internet is needed. 125 of 125 pass.
+
+**Change from the design: lip-sync is fixed by the audio, not by Whisper.** Measured on the fixtures, Whisper timing did not change the mouth-open share:
+
+| Clip | Old | Whisper | Real sound |
+|---|---|---|---|
+| Hindi | 1.00 | 1.00 | 0.74 |
+| English | 0.85 | 0.81 | 0.54 |
+
+Fluent speech has almost no pause over 120 ms between words, and that was the only time the mouth closed. So `quietSpans()` finds stretches of at least 60 ms where each character's voice clip is quiet, and `applyQuiet()` rests the mouth there.
+- This brings the Hindi fixture to 0.75 and English to 0.56, matching the real sound.
+- On `examples/kids-story.json` (Hindi, 6 lines), the share drops from 0.86 to **0.67** (target under 0.70), for every render, with or without Whisper, at no cost.
+
+Also changed: `auto` does **not** listen just because the language isn't English. Edge's Hindi word times match the Devanagari script, and listening costs about 30 s to load the model plus 0.5× real time.
+
+Checked on a real render: `kids-story-3d.json` (Hindi, 3D) with `timing: whisper, lines: true`.
+- 11 parts were timed by listening.
+- The 52 s video rendered fine, with `.srt` and `.vtt`.
+- Dialogue captions appear under the scene, repeating the bubble text, which is why `lines` is off by default.
+
+Original scope:
 - `captions.timing` and `captions.lines` in `spec.mjs` and `validate.mjs`, with aliases (`whisper`, `accurate` → timing whisper).
 - `synthesize()` runs the heard-timing check per clip (cached), and `pipeline.mjs` passes better word lists to `buildTimeline`.
 - Dialogue captions, and visemes from the aligned words.

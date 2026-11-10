@@ -50,7 +50,14 @@ Set `"platform"` to where the video will be posted. It sets the frame size, keep
 | `whatsapp-status` | 1080×1920 | pop | split into 60 s parts |
 | `square`, `linkedin` | 1:1 / 16:9 | line | cover / thumbnail |
 
-`captions` is `true`, `false`, or `{ "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top" }`. Captions are timed to the spoken words using the voice's word timings: `pop` shows 1–3 big words at a time (reels), `karaoke` lights up the word being spoken. Examples: [insta-reel.json](examples/insta-reel.json), [youtube-ad.json](examples/youtube-ad.json). Every render also writes `<title>.srt` and `<title>.vtt` next to the MP4, with the same caption chunks. Upload them with the video; the `.vtt` carries per-word times. Lines are at most 42 characters, or 32 on 9:16 and 4:5 frames, with at most 2 lines per cue.
+`captions` is `true`, `false`, or `{ "style": "line" | "karaoke" | "pop", "position": "bottom" | "middle" | "top", "timing": "auto" | "tts" | "whisper", "lines": false }`.
+
+- `timing: auto` (the default) uses the voice's own word times. It listens with Whisper only where those are missing or don't match the text.
+- `whisper` always listens.
+- Either way, it needs `video_assets install whisper-small`; without the model it falls back to the voice's times and adds a note.
+- `lines: true` gives dialogue lines captions too. That's useful when bubbles are off, but they repeat the bubble text.
+- Characters' mouths rest wherever the voice audio is quiet, so lip-sync looks natural in fluent Hindi as well as English.
+ Captions are timed to the spoken words using the voice's word timings: `pop` shows 1–3 big words at a time (reels), `karaoke` lights up the word being spoken. Examples: [insta-reel.json](examples/insta-reel.json), [youtube-ad.json](examples/youtube-ad.json). Every render also writes `<title>.srt` and `<title>.vtt` next to the MP4, with the same caption chunks. Upload them with the video; the `.vtt` carries per-word times. Lines are at most 42 characters, or 32 on 9:16 and 4:5 frames, with at most 2 lines per cue.
 
 ## Captions on any video
 

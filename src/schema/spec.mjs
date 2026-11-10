@@ -6,6 +6,7 @@ import { PLATFORM_IDS } from './platforms.mjs';
 export const FORMATS = ['16:9', '9:16', '1:1', '4:5'];
 export const CAPTION_STYLES = ['line', 'karaoke', 'pop'];
 export const CAPTION_POSITIONS = ['bottom', 'middle', 'top'];
+export const CAPTION_TIMINGS = ['auto', 'tts', 'whisper'];
 export const THEMES = ['night-saffron', 'clean-light', 'midnight-neon', 'corporate-blue', 'warm-paper', 'storybook', 'festive'];
 export const MASCOTS = ['robot', 'dev', 'founder'];
 export const MOODS = ['happy', 'worried'];
@@ -247,7 +248,9 @@ export const TOP_FIELDS = {
   captions: obj({
     style: enm(CAPTION_STYLES, { doc: 'line: sentence at the bottom; karaoke: the spoken word lights up; pop: 1-3 big words at a time (reels)' }),
     position: enm(CAPTION_POSITIONS),
-  }, { doc: 'true, false, or { style, position }. Default depends on the platform' }),
+    timing: enm(CAPTION_TIMINGS, { doc: 'auto (default): the voice\'s word times, checked by listening (Whisper) only where they are missing; whisper: always listen; tts: never listen' }),
+    lines: { type: 'bool', doc: 'true: dialogue lines get captions too (useful when speech bubbles are off). Default false' },
+  }, { doc: 'true, false, or { style, position, timing, lines }. Default depends on the platform' }),
   fps: num(12, 60),
   cast: list(obj({
     id: str(24, { required: true, doc: 'short id used in scenes, e.g. "miko"' }),

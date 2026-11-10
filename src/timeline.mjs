@@ -88,7 +88,7 @@ export function speechParts(sc) {
  * @param voiceLengths array (per scene) of measured voice seconds, or null where none
  * @param partLengths  array (per scene) of measured seconds per speech part, or null
  */
-export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], narrationWords = [], partWords = []) {
+export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], narrationWords = [], partWords = [], partQuiet = []) {
   const capStyle = storyboard.captions && typeof storyboard.captions === 'object' ? storyboard.captions.style || 'line' : 'line';
   // Short lines on tall frames (reels, stories) so a caption never runs to 3 lines.
   const maxChars = /^(9:16|4:5)$/.test(storyboard.format || '') ? MAX_CHARS.tall : MAX_CHARS.wide;
@@ -116,7 +116,8 @@ export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], n
       if (p.kind === 'line') {
         const tokens = captionTokens(p.text);
         const rel = alignWords(tokens, partWords[i]?.[j] || null, partSecs[j]);
-        tp.visemes = visemeTrack(tokens, rel.map(([a, b]) => [off + a, off + b]), off + partSecs[j]);
+        const quiet = (partQuiet[i]?.[j] || []).map(([a, b]) => [off + a, off + b]);
+        tp.visemes = visemeTrack(tokens, rel.map(([a, b]) => [off + a, off + b]), off + partSecs[j], quiet);
       }
       timed.push(tp);
       off += partSecs[j] + PART_GAP;
@@ -125,6 +126,14 @@ export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], n
     const narrPart = timed.find(p => p.kind === 'narration');
     if (narr && narrPart && storyboard.captions !== false) {
       captions.push(...timedCaptions(sc.narration, narrationWords[i], narrPart.start, narrPart.end - narrPart.start, capStyle, { maxChars }));
+    }
+    // Dialogue lines as captions too (captions.lines), each timed by its speaker's voice.
+    if (storyboard.captions && storyboard.captions.lines) {
+      timed.forEach((tp, j) => {
+        if (tp.kind !== 'line') return;
+        captions.push(...timedCaptions(parts[j].text, partWords[i]?.[j] || null, tp.start, tp.end - tp.start, capStyle, { maxChars }));
+      });
+      captions.sort((a, b) => a.start - b.start);
     }
     scenes.push({ index: i, template: sc.template, start, end, duration: +duration.toFixed(3), voiceStart, voiceLength: measured ?? null, estimated: measured == null && parts.length > 0, captions, parts: timed });
     t += duration;

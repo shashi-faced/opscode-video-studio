@@ -456,6 +456,27 @@ Findings:
 | Bug fixed | "30%" was heard as "30" "%" and the "%" was dropped; symbols now join their word |
 | Tests | 117 pass (6 new in `test/captions-tool.test.mjs`) |
 
+## v0.13.0-dev: Whisper captions, Phase 6 generated videos (2026-11-10)
+
+- `captions.timing`: `auto` (default) listens only where voice timings are missing or poor; `whisper` always listens; `tts` never does.
+- `captions.lines` adds dialogue captions.
+- Listening happens once per scene. Without the model, the render falls back to the voice timings with a note.
+
+**Lip-sync, fixed by the audio:** the mouth now rests wherever the voice clip is quiet for at least 60 ms. Whisper timing alone did not help, because fluent speech has no pauses between words.
+
+| Mouth-open share | Before | After | Real sound |
+|---|---|---|---|
+| Hindi fixture line | 1.00 | 0.75 | 0.74 |
+| English fixture line | 0.85 | 0.56 | 0.54 |
+| `kids-story.json` (Hindi, 6 lines) | 0.86 | **0.67** | — |
+
+| Check | Result |
+|---|---|
+| `kids-story.json`, `timing: whisper` + `lines` | 11 parts listened to in 48 s (incl. model load); 21 captions instead of 11; mouth open 0.64 |
+| `kids-story-3d.json` render, `timing: whisper` + `lines` | 52 s video renders at 22 fps; dialogue captions shown under the bubbles |
+| `timing: auto` on the same story | no listening (voice timings match), 0.2 s |
+| Tests | 125 pass (8 new in `test/timing.test.mjs`) |
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.

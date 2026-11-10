@@ -34,18 +34,26 @@ async function pipelineFor(id) {
     const m = modelInfo(id);
     throw userError(`the ${m.label} speech model is not installed`, `run video_assets with action "install" and set "whisper-${id}" (${Math.round(m.size / 1048576)} MB, once)`);
   }
-  const tf = await loadTransformers();
-  tf.env.localModelPath = MODEL_DIR + path.sep;
-  tf.env.allowRemoteModels = false;
-  tf.env.allowLocalModels = true;
-  const p = { tf, asr: await tf.pipeline('automatic-speech-recognition', modelInfo(id).repo, { dtype: 'q8', device: 'cpu' }) };
+  // Store the promise, so parallel callers (film voice batches) load the model once.
+  const p = (async () => {
+    const tf = await loadTransformers();
+    tf.env.localModelPath = MODEL_DIR + path.sep;
+    tf.env.allowRemoteModels = false;
+    tf.env.allowLocalModels = true;
+    return { tf, asr: await tf.pipeline('automatic-speech-recognition', modelInfo(id).repo, { dtype: 'q8', device: 'cpu' }) };
+  })();
   pipes.set(id, p);
+  p.catch(() => pipes.delete(id));
   return p;
 }
 
+// One listening job at a time per process: the model already uses every CPU core.
+let queue = Promise.resolve();
+const serial = (fn) => { const run = queue.then(fn, fn); queue = run.catch(() => {}); return run; };
+
 /** Free loaded models (about 1–2 GB of memory each). */
 export async function unloadModels() {
-  for (const p of pipes.values()) { try { await p.asr.dispose(); } catch { /* already freed */ } }
+  for (const p of pipes.values()) { try { await (await p).asr.dispose(); } catch { /* already freed */ } }
   pipes.clear();
 }
 
@@ -82,7 +90,9 @@ async function hear({ asr }, pcm, language) {
  * @param opts.cache     reuse an earlier result for the same audio (default true)
  * @returns Transcript { engine, model, revision, language, languageDetected, duration, shift, words, segments, dropped, notes }
  */
-export async function transcribe(input, { language = 'auto', quality = 'balanced', keep = [], cache = true, onProgress = () => {} } = {}) {
+export function transcribe(input, opts = {}) { return serial(() => transcribeNow(input, opts)); }
+
+async function transcribeNow(input, { language = 'auto', quality = 'balanced', keep = [], cache = true, onProgress = () => {} } = {}) {
   let id = QUALITY[quality] || (modelInfo(quality) && quality);
   const pcm = input && input.pcm ? input.pcm : readPcm(input);
   const duration = pcm.length / ASR_SR;
