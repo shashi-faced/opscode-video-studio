@@ -338,6 +338,43 @@ Valid on the first or second round: 9/10 (90 %).
 |---|---|
 | Tests | 64 pass (2 new: invented-word corrections; pack determinism) |
 
+## v0.13.0-dev: Whisper captions, Phase 1 spike (2026-11-10)
+
+Plan 13. Engine: transformers.js 4.3.2 (ONNX Runtime on the CPU, 8 cores, no GPU), models `onnx-community/whisper-{base,small}_timestamped` at q8, word timestamps.
+
+Ground truth: 20 cached Edge TTS clips (10 English, 10 Hindi) and their word boundaries. The long test joins 24 English clips with 0.8 s gaps.
+
+| | base, English | small, English | base, Hindi | small, Hindi |
+|---|---|---|---|---|
+| WER | 5.7% | **1.9%** | 107% (written in Urdu or Latin letters) | 35% (Devanagari, spelling slips) |
+| Words matched to the script | 95% | 99% | 0% | 66% |
+| Start error, raw (median / p90) | 250 / 377 ms | 255 / 372 ms | — | 193 / 253 ms |
+| Start error after removing the fixed shift (median / p90) | 68 / 135 ms | **60 / 120 ms** | — | **31 / 66 ms** |
+| Speed (seconds of work per second of audio) | 0.17–0.19 | 0.34 | 0.30 | 0.81 (short clips, each padded to 30 s) |
+| Model load | 12.5 s | 28.9 s | | |
+| Peak RAM | 0.9 GB | 1.7 GB | | |
+| Download | 76 MB | 241 MB | | |
+
+**Long audio (small):** 148.9 s of speech took 49.8 s (0.33× real time). 95% of 315 words were matched. Start error after the shift is 64 / 145 ms. Drift from start to end is −28 ms, and times always increase, so the 30 s windows join cleanly.
+
+**Invented words (small, 20 s each):**
+- silence: "you";
+- pink noise: "Thank you.";
+- music: "Thank you for watching!".
+
+A guard is required.
+
+**Fixed shift:** the sound actually starts at about 0.21 s.
+- Edge's first word is at 0.10 s, about 110 ms early. Today's captions are slightly early, which is harmless.
+- Whisper is about 140 ms late (base: 0.30–0.58 s).
+- Whisper's word spacing is accurate, so one calibrated constant per model fixes it.
+
+**Install size:** `npm install @huggingface/transformers` is 745 MB. Of that, onnxruntime-node is 548 MB: all operating systems, plus a 260 MB CUDA library. Linux x64 CPU needs about 45 MB, so the installer must trim the rest.
+
+whisper.cpp: not built (no `cmake` on this machine).
+
+**Decision:** transformers.js; small by default; base as the fast English option.
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.

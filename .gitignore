@@ -4,3 +4,4 @@ test/out/
 out/
 *.tgz
 eval/3d/runs/
+eval/asr/runs/

@@ -186,7 +186,31 @@ Original scope:
 - Remove `VIDEO_STUDIO_EXTRA_TOOLS` and the `video_`/`doc_` name fallback from the app's `packageAgents.ts`, because the package now declares the tools itself.
 - Done when: a fresh install from git has all editing tools, and the app tests pass.
 
-### Phase 1: Spike and engine decision (~1 day)
+### Phase 1: Spike and engine decision ✅ (2026-11-10)
+**Decision:**
+- Engine: transformers.js 4.3.2, with the `onnx-community/whisper-*_timestamped` models at q8.
+- Default model: **small** (241 MB) for all languages.
+- **base** (76 MB) is the `fast` choice, for English only.
+- whisper.cpp is not built: it needs `cmake`, which this machine doesn't have, and users won't have it either. It stays an optional engine for later.
+- The full numbers are in `plans/09-status-and-eval-log.md` (v0.13.0-dev). They come from `eval/asr/spike.mjs` and `eval/asr/long.mjs`.
+
+**What Phase 2 must add, from the spike:**
+1. **Fix a fixed timing shift.**
+   - The real sound starts about 0.21 s into a clip. Edge reports the first word about 110 ms early; Whisper reports it 140–250 ms late.
+   - Shift Whisper words earlier by a calibrated constant for each model. Check it in tests against the sound's onset.
+   - With the shift removed, the error is 60 ms median in English and 31 ms in Hindi (target 80 ms).
+2. **Guard against invented words. This is required.**
+   - On 20 s with no speech, small heard "you" on silence, "Thank you." on pink noise and "Thank you for watching!" on music.
+   - Use an energy floor for each word, plus a blocklist of Whisper's stock phrases when the clip is quiet or musical.
+3. **Install a trimmed runtime.**
+   - Plain `npm install` is 745 MB: onnxruntime-node ships binaries for every OS, plus a 260 MB NVIDIA (CUDA) library.
+   - Keep only `bin/napi-v6/<platform>/<arch>` without `*providers_cuda*`, which is about 45 MB on Linux x64.
+   - Also test whether `onnxruntime-web` (141 MB) can be removed in Node.
+4. **Group short clips.** Whisper pads every window to 30 s, so a 5 s clip costs almost as much as 30 s (Hindi short clips: 0.8× real time). For generated videos, listen to a whole scene's voice track at once, not each line.
+5. **Hindi spelling.** small writes correct Devanagari but makes spelling slips (35% WER, e.g. गाव for गाँव). Use the known script for spelling whenever we have it. For Hindi files with no script, test `turbo` in Phase 8.
+6. **RAM.** small peaks at 1.7 GB, base at 0.9 GB. Load one model per process and free it after a job.
+
+Original scope:
 - Script `eval/asr/spike.mjs`: transcribe 20 cached TTS clips (10 English, 10 Hindi), whose Edge timings are ground truth, with transformers.js base and small, and with whisper.cpp if it builds.
 - Measure:
   - word start error (median and p90);
