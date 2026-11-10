@@ -81,5 +81,14 @@ export async function doctor({ install = false, checkNetwork = true } = {}) {
       report.items.push({ name: `${label} (optional)`, ok: true, detail: a.installed ? `${a.installed}/${a.total} installed (CC0)` : 'not installed; 3D uses models made in code', fix: a.installed < a.total ? `opscode-video assets install ${set} (${a.sizeMB} MB)` : undefined });
     }
   } catch { /* manifest missing: nothing to report */ }
+  // Speech models for word-by-word captions from any video (optional: captions of generated videos use voice timings).
+  try {
+    const { runtimeStatus } = await import('../asr/runtime.mjs');
+    const { modelStatus } = await import('../asr/models.mjs');
+    const rt = runtimeStatus(), ms = modelStatus(), have = ms.filter(m => m.installed);
+    report.items.push({ name: 'speech for captions (optional)', ok: true,
+      detail: rt.installed && have.length ? `Whisper ${have.map(m => m.id).join(', ')} installed, engine ${rt.sizeMB} MB` : 'not installed; captions of generated videos still follow the voice',
+      fix: rt.installed && have.length ? undefined : 'video_assets install whisper-small (about 340 MB with the engine) for captions on any video' });
+  } catch { /* manifest missing: nothing to report */ }
   return report;
 }

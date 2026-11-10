@@ -375,6 +375,33 @@ whisper.cpp: not built (no `cmake` on this machine).
 
 **Decision:** transformers.js; small by default; base as the fast English option.
 
+## v0.13.0-dev: Whisper captions, Phase 2 transcription core (2026-11-10)
+
+`transcribe(file | { pcm }, { language: 'auto', quality: 'balanced' })` gives words with start and end times. `eval/asr/phase2.mjs` measures it on the same 20 clips, with automatic language detection, against the real sound: Edge's word spacing, moved to where the speech actually starts.
+
+| | English (10 clips) | Hindi (10 clips) |
+|---|---|---|
+| Language detected correctly | 10 / 10 | 10 / 10 |
+| Timing shift measured on the file (else default) | 6 / 10 | 0 / 10 (short clips, few pauses) |
+| Start error median / p90 | **65 / 147 ms** | **40 / 123 ms** |
+| Time per second of audio (incl. 3 s language detection) | 1.08 | 2.18 |
+
+The time per second is high only because the clips are 5–10 s long. Language detection and Whisper's 30 s padding cost about the same for any file, and long audio runs at 0.33 (Phase 1).
+
+**Invented words, all removed:**
+- silence: "you", which was timed after the end of the audio;
+- noise: "Thank you.";
+- music: "Thank … you for watching!", spread over 4 s.
+
+**Engine install:**
+- 51 s from scratch.
+- 102 MB after trimming 631 MB (other operating systems, CUDA, the browser build).
+- The engine installed for the spike was trimmed the same way, from 733 MB to 102 MB.
+
+| Test | Result |
+|---|---|
+| Tests | 92 pass (17 new in `test/asr.test.mjs`; 11 editing tests from Phase 0) |
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.

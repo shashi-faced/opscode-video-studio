@@ -36,7 +36,7 @@ export const TOOL_DEFS = [
   { name: 'video_render', description: 'Render the final MP4 with voiceover, music and captions. Takes 1-3 minutes.', parameters: { type: 'object', properties: { storyboard: { type: 'string', description: 'path to storyboard.json' }, out: { type: 'string', description: 'optional output .mp4 path' }, fps: { type: 'number', description: 'optional, default 30' } }, required: ['storyboard'] } },
   { name: 'video_film_render', description: 'Render a long video (film) made of sequences of short shots: { "title", ...storyboard fields, "sequences": [ { "id", "title", "music": { "style" }, "shots": [ <scene with optional "id">, ... ] } ] }. Shots render in parallel and are cached, so changing one shot re-renders only that shot. Also accepts a normal storyboard. Can take several minutes for long films.', parameters: { type: 'object', properties: { film: { type: 'string', description: 'path to film.json (or storyboard.json)' }, workers: { type: 'number', description: 'parallel render workers (default: CPU cores - 2, max 6)' }, only: { type: 'array', items: { type: 'string' }, description: 'optional: render only these shot ids' }, force: { type: 'boolean', description: 'ignore the cache and render every shot again' }, out: { type: 'string', description: 'optional output .mp4 path' } }, required: ['film'] } },
   { name: 'video_film_status', description: 'Show a film project: sequences, shots done / failed / not rendered yet, last render. Use it to resume a long render.', parameters: { type: 'object', properties: { film: { type: 'string', description: 'path to film.json' } }, required: ['film'] } },
-  { name: 'video_assets', description: 'Manage the downloadable 3D packs used by "look": "3d": characters (5.8 MB, CC0 by Quaternius) and world scenery (2.2 MB, CC0 by Kenney: furniture, trees, houses, city buildings, ships, spacecraft, food). action: list, install (download and verify), remove; optional set: 3d-starter or 3d-world (default both). Without them, 3D is built in code.', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['list', 'install', 'remove'] }, set: { type: 'string', enum: ['3d-starter', '3d-world'] } }, required: ['action'] } },
+  { name: 'video_assets', description: 'Manage downloads: the 3D packs used by "look": "3d" (characters 5.8 MB, CC0 by Quaternius; world scenery 2.2 MB, CC0 by Kenney), and the Whisper speech models that hear words for word-by-word captions (whisper-small 240 MB, all languages incl. Hindi; whisper-base 76 MB, English; plus a ~100 MB speech engine on first install). action: list, install (download and verify), remove; optional set (default: both 3D packs). Ask the user before installing a speech model.', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['list', 'install', 'remove'] }, set: { type: 'string', enum: ['3d-starter', '3d-world', 'whisper-small', 'whisper-base'] } }, required: ['action'] } },
   { name: 'video_character', description: 'Designed 3D characters (cast "design"). action sheet: render a turnaround sheet (front, 3/4, side, back, moods, walk) of cast member "id" from the storyboard and return it as an image to check; save: store that design in the character library so any video can use "design": "library:<id>"; list: show saved characters.', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['sheet', 'save', 'list'] }, storyboard: { type: 'string' }, id: { type: 'string', description: 'cast id' } }, required: ['action'] } },
   { name: 'video_capture', description: 'Screenshot a web page or local app URL into a PNG for use in a storyboard. Optional crop in pixels.', parameters: { type: 'object', properties: { url: { type: 'string' }, out: { type: 'string', description: 'output .png path' }, width: { type: 'number' }, height: { type: 'number' }, crop: { type: 'string', description: 'x,y,w,h in pixels (optional)' }, waitMs: { type: 'number' } }, required: ['url', 'out'] } },
   { name: 'video_doctor', description: 'Check that Chrome, ffmpeg and voices work. Use install=true to download a missing browser.', parameters: { type: 'object', properties: { install: { type: 'boolean' } }, required: [] } },
@@ -154,6 +154,28 @@ function extrasText(x = {}) {
   return out.length ? '\n' + out.join('\n') : '';
 }
 
+/** video_assets for the Whisper speech engine and models (plan 13). */
+async function speechAssets(act, set, onProgress) {
+  const { runtimeStatus, installRuntime, removeRuntime } = await import('./asr/runtime.mjs');
+  const { modelStatus, installModel, removeModel, MODEL_DIR } = await import('./asr/models.mjs');
+  const id = set ? set.replace(/^whisper-/, '') : null;
+  let ok = true, note = '';
+  try {
+    if (act === 'install' && id) {
+      const rt = await installRuntime({ onProgress });
+      await installModel(id, { onProgress });
+      note = rt.already ? '' : `Speech engine installed (${rt.sizeMB} MB${rt.freedMB ? `, trimmed ${rt.freedMB} MB not needed on this computer` : ''}).`;
+    } else if (act === 'remove' && id) {
+      removeModel(id);
+      if (!modelStatus().some(m => m.installed)) { removeRuntime(); note = 'No speech model left, so the speech engine was removed too.'; }
+    }
+  } catch (e) { ok = false; note = `Failed: ${e.message}${e.fix ? ` → ${e.fix}` : ''}`; }
+  const rt = runtimeStatus(), models = modelStatus();
+  const lines = models.map(m => `  ${m.installed ? '✓' : '·'} ${m.set}: ${m.label}, ${m.sizeMB} MB`);
+  const text = `Speech models for word-by-word captions (Whisper, MIT licence): engine ${rt.installed ? `installed (${rt.sizeMB} MB)` : 'not installed (~100 MB, installed with the first model)'}\n${lines.join('\n')}${note ? `\n${note}` : ''}\nFolder: ${MODEL_DIR}`;
+  return { ok, text, data: { runtime: rt, models } };
+}
+
 export async function runTool(name, params = {}, { cwd = process.cwd(), onProgress = () => {} } = {}) {
   const abs = (p) => (p ? path.resolve(cwd, String(p)) : p);
   switch (name) {
@@ -241,6 +263,12 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
     case 'video_assets': {
       const { assetStatus, installAssets, removeAssets, SETS } = await import('./assets/assets.mjs');
       const act = params.action || 'list';
+      let speechText = '', speechData = null;
+      if (/^whisper-/.test(params.set || '') || act === 'list') {
+        const speech = await speechAssets(act, params.set, onProgress);
+        if (params.set) return speech;
+        speechText = speech.text; speechData = speech.data;
+      }
       const sets = params.set && SETS[params.set] ? [params.set] : Object.keys(SETS);
       const parts = [];
       let ok = true;
@@ -252,7 +280,8 @@ export async function runTool(name, params = {}, { cwd = process.cwd(), onProgre
         const lines = set === '3d-starter' ? st.models.map(m => `  ${m.installed ? '✓' : '·'} ${m.kind}: ${m.name} (${m.sizeKB} KB)`) : [`  ${st.models.filter(m => m.installed).length} props: ${st.models.map(m => m.name).join(', ')}`];
         parts.push(`${st.title}: ${st.installed}/${st.total} installed (${st.sizeMB} MB)\n${lines.join('\n')}${st.failed?.length ? `\n  Failed: ${st.failed.map(f => `${f.kind || f.name}: ${f.error}`).join('; ')}` : ''}\n  Credit: ${st.credit}`);
       }
-      return { ok, text: `${parts.join('\n')}\nFolder: ${Object.values(data)[0].dir}\n${act === 'list' ? 'Run with action "install" to download (one time). Without them, 3D characters and places are built in code.' : 'Installed packs are used automatically in 3D videos.'}`, data };
+      if (speechData) data.speech = speechData;
+      return { ok, text: `${parts.join('\n')}\nFolder: ${Object.values(data)[0].dir}\n${act === 'list' ? 'Run with action "install" to download (one time). Without them, 3D characters and places are built in code.' : 'Installed packs are used automatically in 3D videos.'}${speechText ? `\n\n${speechText}` : ''}`, data };
     }
 
     case 'video_character': {
