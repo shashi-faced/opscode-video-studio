@@ -477,6 +477,15 @@ Findings:
 | `timing: auto` on the same story | no listening (voice timings match), 0.2 s |
 | Tests | 125 pass (8 new in `test/timing.test.mjs`) |
 
+## v0.13.0: Whisper captions, Phase 7 app and release prep (2026-11-10)
+
+- Package version 0.13.0.
+- The app catalog points to tag `v0.13.0`. It has caption text, sample prompts and the setup fields `captions` and `captionTiming`.
+- The hard-coded editing tools were removed from the app; the package declares all 17 tools.
+- App bug fixed: the start-up refresh overwrote the installed version with the catalog's, so the store never offered updates.
+- Simulated install from a local archive: 0.94 MB to download, 45 MB installed, manifest v0.13.0 with 17 tools.
+- **Waiting on the owner:** pushing `version13` and the tag `v0.13.0`, committing the app, rebuilding it, then using Update in the store.
+
 ## Next
 
 1. Run the 10-prompt task set from plan 08 on 3–4 small models through the real app loop and log results here.

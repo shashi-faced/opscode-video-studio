@@ -389,7 +389,30 @@ Original scope:
   - `auto` falls back without failing when no model is installed (with a warning);
   - Hindi lip-sync: the mouth is open less than 70% of the time.
 
-### Phase 7: App (~1 day)
+### Phase 7: App ⏳ (2026-11-10): code done, release not published
+Package (`opscode-video-studio`, branch `version13`): version 0.13.0 in `package.json` and `agent/manifest.json`.
+
+App (`Hecto`, branch `version13`, not committed):
+- `agentStoreCatalog.ts`:
+  - version `0.13.0`, with the tarball at tag `v0.13.0`;
+  - the description, a "Word-by-word captions on any video" section and two caption sample prompts;
+  - setup fields `captions` (Pop / Karaoke / Subtitles / Off) and `captionTiming` (Fast / Accurate), the latter hidden when captions are off.
+- `packageAgents.ts`: `VIDEO_STUDIO_EXTRA_TOOLS` and the `video_`/`doc_` name fallback are removed. The package now declares all 17 tools itself.
+- `installedAgentsStore.ts`: **bug fixed.** The start-up refresh copied the catalog's `version` onto the installed record. With a new catalog version, the store would then think the update was already installed: it would never show "Update", and the old package would keep running. The refresh now updates only the store text.
+- The type check (`tsc --noEmit`) passes.
+
+Install check: the app's install steps (unpack the tag archive, `npm install`, `agent-manifest`) were run on a `git archive` of the working tree in a throwaway home. The archive is 0.94 MB and 45 MB once installed, and the manifest reports v0.13.0 with 17 tools.
+
+Not done (needs the owner):
+1. Commit the app changes.
+2. Commit and push `version13` of the package, then create and push the tag `v0.13.0`. Until the tag exists, the store's download returns 404, the same failure seen with v0.3.0.
+3. Rebuild the app (`npx tauri build --no-bundle`), then use "Update" in the store.
+
+The first-use progress bar for the model download is not built: the app shows no live tool progress yet (the same gap as render progress, noted in plan 12).
+
+Found, not changed (not part of this plan): the app's "Faceless Explainer" look sends `"look": "faceless"`, which the package rejects ("look: "faceless" is not allowed"), so the agent must fix it and validate again.
+
+Original scope:
 - Catalog: description and sample prompts ("🔤 Add word-by-word captions to video/demo.mp4", "Make Hindi subtitles for my reel").
 - Setup panel: a "Captions" choice (Line / Karaoke / Pop / Off) and a "Caption timing: Fast (voice) / Accurate (Whisper)" choice.
 - The first use asks before downloading the model (size shown), with a progress bar from `onProgress`.
