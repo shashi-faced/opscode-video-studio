@@ -528,3 +528,11 @@ Findings:
 - **Offline and private:** local GSAP and fonts, usage tracking off, only local commands allowed; a traced render made no internet connection from HyperFrames, and it works with the internet off.
 - **Checked:** Hindi 9:16 and English 16:9 videos rendered with sound and captions; a broken page is refused with fixes; tests 157/157 (18 new).
 - **Open:** how often small models write a valid page (one sample passed first try; the gateway timed out on more).
+
+## v0.16.0: ElevenLabs voices (2026-11-12, plan 17)
+- **New:** with the user's ElevenLabs key, the narrator and every character get their own expressive voice, matched from the account's voice library by gender, age and accent. Hindi and English. Lip-sync and captions use ElevenLabs' timings.
+- **Key:** saved by `opscode-video voice-key --stdin` (called from the app's Settings → Voices) into `secrets.json`, mode 0600. Never printed.
+- **Tool:** `video_voices` (status, list, test). Named voices via a cast member's `voice` or `voice.narrator`.
+- **Delivery tags** such as `[laughs]` are acted on by the v3 and v4 models and removed everywhere else (captions, bubbles, built-in voices).
+- Clips are cached; a failure falls back to the built-in voices with a note. Without a key nothing changes.
+- **Checked:** 14 tests against a fake ElevenLabs API with real audio; suite 171/171. **Not yet run with a real key.**

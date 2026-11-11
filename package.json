@@ -1,6 +1,6 @@
 {
   "name": "@opscode/video-studio",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "Opscode Video Studio agent: storyboard JSON to animated MP4 with voiceover, music and captions.",
   "type": "module",
   "bin": {

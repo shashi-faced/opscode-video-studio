@@ -6,11 +6,17 @@ import crypto from 'node:crypto';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { HOME_DIR } from '../deps/locate.mjs';
 import { decodeMono, trimSilenceLead, normalisePeak, SR } from './wav.mjs';
-import { speechParts, PART_GAP, captionTokens } from '../timeline.mjs';
+import { speechParts, PART_GAP, captionTokens, stripTags } from '../timeline.mjs';
 import { KIND_INFO } from '../compiler/characters.mjs';
 import { loudness, levels } from '../asr/audio.mjs';
 import { quietSpans } from './visemes.mjs';
 import { matchRate } from '../captions/align.mjs';
+import { voiceProvider } from '../secrets.mjs';
+import { library, pickModel, assignVoices, speak as elevenSpeak } from './elevenlabs.mjs';
+import { loadSecrets } from '../secrets.mjs';
+
+/** Built-in (Edge) voice ids look like "hi-IN-SwaraNeural"; any other voice name belongs to ElevenLabs. */
+export const isEdgeVoice = (v) => /^[a-z]{2,3}-[A-Z]{2}-\w+$/.test(String(v || ''));
 
 // Character voices follow the narrator's language; age sets pitch and speed.
 const VOICE_BY_LANG = {
@@ -34,7 +40,7 @@ export function castVoices(storyboard) {
   const add = (key, c) => {
     const info = KIND_INFO[c.kind] || KIND_INFO.rabbit;
     const pros = AGE_PROSODY[info.age] || AGE_PROSODY.adult;
-    const voice = c.voice || VOICE_BY_LANG[lang][info.gender === 'm' ? 'm' : 'f'];
+    const voice = (isEdgeVoice(c.voice) && c.voice) || VOICE_BY_LANG[lang][info.gender === 'm' ? 'm' : 'f'];
     let pitch = pros.pitch;
     // Two characters with the same voice and age would sound identical: shift each a little.
     const sig = `${voice}|${pitch}`;
@@ -59,7 +65,9 @@ export function castVoices(storyboard) {
 
 const CACHE = path.join(HOME_DIR, 'cache', 'tts');
 const xmlEscape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-const speakable = (s) => String(s).replace(/\*/g, '');
+const speakable = (s) => stripTags(s).replace(/\*/g, '');
+/** Text for ElevenLabs: its newest models act on [laughs]-style tags; older ones would read them aloud. */
+const elevenText = (s, model) => (/^eleven_v[3-9]/.test(model) ? String(s).replace(/\*/g, '').replace(/\s+/g, ' ').trim() : speakable(s));
 
 /** Word timings from Edge metadata: [{ text, start, end }] in seconds from the audio start. */
 export function parseWordBoundaries(raw) {
@@ -113,6 +121,75 @@ async function speakCached(voice, rate, pitch, text, needWords = false) {
 }
 
 /**
+ * ElevenLabs casting for a storyboard, or null when it is not in use. Every cast member and the
+ * narrator get their own voice from the account's library, matched by gender, age and language;
+ * a "voice" naming an ElevenLabs voice (on a cast member, or voice.narrator) is used as given.
+ */
+export async function elevenCast(storyboard, notes = []) {
+  if (voiceProvider() !== 'elevenlabs') return null;
+  let lib;
+  try { lib = await library(); }
+  catch (e) { notes.push(`ElevenLabs was not used (${e.message}); the built-in voices were used`); return null; }
+  if (!lib.voices.length) { notes.push('ElevenLabs was not used (the account has no voices); the built-in voices were used'); return null; }
+  const narratorEdge = storyboard.voice?.voice || 'en-IN-NeerjaExpressiveNeural';
+  const lang = String(narratorEdge).slice(0, 2).toLowerCase() === 'hi' ? 'hi' : 'en';
+  const maleNarrator = Object.values(VOICE_BY_LANG).some((v) => v.m === narratorEdge) || /Madhur|Prabhat|Andrew|Ryan/.test(narratorEdge);
+  const parts = [{ key: '\u0000narrator', gender: maleNarrator ? 'm' : 'f', age: 'adult', lang, role: 'narrator', wanted: storyboard.voice?.narrator }];
+  const keyOf = new Map();
+  for (const c of storyboard.cast || []) {
+    const info = KIND_INFO[c.kind] || KIND_INFO.rabbit;
+    const key = String(c.id).toLowerCase();
+    parts.push({ key, gender: info.gender === 'm' ? 'm' : 'f', age: info.age || 'adult', lang, role: 'character', wanted: c.voice && !isEdgeVoice(c.voice) ? c.voice : undefined });
+    keyOf.set(key, key);
+    if (c.name) keyOf.set(String(c.name).toLowerCase(), key);
+  }
+  const map = assignVoices(lib.voices, parts);
+  const model = pickModel(lib.models, loadSecrets().voice?.model);
+  const speedFor = (age) => ({ kid: 1.05, old: 0.93, big: 0.96 }[age] || 1);
+  const ages = new Map(parts.map((p) => [p.key, p.age]));
+  return {
+    model, lang, voices: lib.voices, map,
+    narrator: () => ({ voice: map.get('\u0000narrator'), speed: 1 }),
+    get(who) {
+      let k = keyOf.get(String(who || '').toLowerCase());
+      if (!k) {
+        // A speaker that is not in the cast (a bare kind such as "dog"): cast it now.
+        k = String(who || '').toLowerCase();
+        const info = KIND_INFO[k] || KIND_INFO.rabbit;
+        const one = assignVoices(lib.voices.filter((v) => ![...map.values()].some((u) => u.id === v.id)), [{ key: k, gender: info.gender === 'm' ? 'm' : 'f', age: info.age || 'adult', lang, role: 'character' }]);
+        map.set(k, one.get(k) || map.get('\u0000narrator'));
+        ages.set(k, info.age || 'adult');
+        keyOf.set(k, k);
+      }
+      return { voice: map.get(k), speed: speedFor(ages.get(k)) };
+    },
+    summary() {
+      // Narrator first, then the cast in its own order, then speakers added later.
+      const order = [...parts.map((p) => p.key), ...[...map.keys()].filter((k) => !parts.some((p) => p.key === k))];
+      const names = order.filter((k) => map.has(k)).map((k) => `${k === '\u0000narrator' ? 'narrator' : k}: ${map.get(k).name}`);
+      return `ElevenLabs (${model}) — ${names.join('; ')}`;
+    },
+  };
+}
+
+/** Speak one clip with ElevenLabs, cached on disk like the built-in voices. */
+async function speakElevenCached(el, v, text, usage) {
+  const key = crypto.createHash('sha1').update(JSON.stringify(['eleven', el.model, v.voice.id, v.speed, el.lang, text])).digest('hex').slice(0, 16);
+  const mp3 = path.join(CACHE, `el-${key}.mp3`);
+  const wordsFile = path.join(CACHE, `el-${key}.words.json`);
+  if (!fs.existsSync(mp3) || fs.statSync(mp3).size < 500) {
+    const r = await elevenSpeak({ voiceId: v.voice.id, text, model: el.model, language: el.lang, speed: v.speed });
+    fs.writeFileSync(mp3, r.mp3);
+    fs.writeFileSync(wordsFile, JSON.stringify(r.words || []));
+    usage.characters += r.characters;
+  } else usage.cached++;
+  const { samples, lead } = trimSilenceLead(decodeMono(mp3));
+  let words = null;
+  try { words = JSON.parse(fs.readFileSync(wordsFile, 'utf8')).map((w) => ({ text: w.text, start: +Math.max(0, w.start - lead).toFixed(3), end: +Math.max(0, w.end - lead).toFixed(3) })); } catch { words = null; }
+  return { samples: normalisePeak(samples), file: mp3, words: words && words.length ? words : null };
+}
+
+/**
  * Returns per scene: null or { samples (mono 48k, all parts joined), seconds, parts: [seconds per part], file }.
  * Narration uses the storyboard voice; each dialogue line uses its speaker's voice.
  */
@@ -131,6 +208,9 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
   const timing = storyboard.captions && typeof storyboard.captions === 'object' ? storyboard.captions.timing || 'auto' : 'auto';
   const lang = String(voice).slice(0, 2).toLowerCase();
   const notes = [];
+  // ElevenLabs when the user saved a key: a different, expressive voice for every character.
+  let eleven = await elevenCast(storyboard, notes);
+  const usage = { characters: 0, cached: 0, clips: 0 };
   let listener;   // undefined: not checked yet; null: cannot listen
   const listen = async () => {
     if (listener !== undefined) return listener;
@@ -152,7 +232,12 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
     for (const p of parts) {
       const v = p.kind === 'line' ? voices.get(p.who) : { voice, rate, pitch: null };
       // Narration timings drive captions; dialogue-line timings drive the speaker's mouth (lip-sync).
-      const clip = await speakCached(v.voice, v.rate, v.pitch, speakable(p.text), p.kind === 'line' || needWords);
+      let clip = null;
+      if (eleven) {
+        try { clip = await speakElevenCached(eleven, p.kind === 'line' ? eleven.get(p.who) : eleven.narrator(), elevenText(p.text, eleven.model), usage); usage.clips++; }
+        catch (e) { notes.push(`ElevenLabs stopped (${e.message}); the built-in voices were used for the rest`); eleven = null; }
+      }
+      if (!clip) clip = await speakCached(v.voice, v.rate, v.pitch, speakable(p.text), p.kind === 'line' || needWords);
       clips.push(clip.samples);
       partWords.push(clip.words);
       // Where this clip is quiet: the speaker's mouth rests there (lip-sync), whatever the language.
@@ -194,5 +279,10 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
   }
   if (heardParts) notes.push(`caption timing: ${heardParts} spoken part(s) timed by listening (Whisper)`);
   out.notes = notes;
+  // Who spoke: shown in the render result, so the agent can tell the user which voices were used.
+  if (usage.clips) {
+    out.provider = 'elevenlabs';
+    out.voiceSummary = `${(eleven || { summary: () => 'ElevenLabs' }).summary()} (${usage.characters} characters billed${usage.cached ? `, ${usage.cached} clip(s) reused from cache` : ''})`;
+  } else out.provider = 'edge';
   return out;
 }

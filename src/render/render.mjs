@@ -228,7 +228,7 @@ export async function render(storyboardFile, { out, fps, workers, onProgress = (
     width: build.stage.width,
     height: build.stage.height,
     sizeMB: +(size / 1048576).toFixed(2),
-    voice: p.voiceNote ? p.voiceNote : (p.voices.some(Boolean) ? storyboard.voice.voice : 'none'),
+    voice: p.voiceNote ? p.voiceNote : (p.voices.some(Boolean) ? (p.voices.voiceSummary || storyboard.voice.voice) : 'none'),
     music: storyboard.music?.file ? 'file' : storyboard.music?.style,
     ...(p.timingNote ? { captionTiming: p.timingNote } : {}),
     scenes: timeline.scenes.map(s => ({ template: s.template, start: s.start, duration: s.duration })),

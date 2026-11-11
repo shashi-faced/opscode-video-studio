@@ -14,9 +14,14 @@ export const TAIL = 0.7;
 const READ_CPS = 15; // estimated speaking speed when there is no voice
 
 export const escapeHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/**
+ * Delivery tags such as [laughs], [whispers] or [excited] tell an expressive voice (ElevenLabs) how to
+ * say a line. They are never shown on screen, never in captions, and never read aloud by other voices.
+ */
+export const stripTags = (s) => String(s ?? '').replace(/\[[A-Za-z][A-Za-z ,'-]{1,28}\]/g, ' ').replace(/[ \t]{2,}/g, ' ').trim();
 // *word* -> <mark>word</mark>; everything else escaped.
-export const markup = (s) => escapeHtml(s).replace(/\*([^*]+)\*/g, '<mark>$1</mark>');
-const plain = (s) => String(s ?? '').replace(/\*/g, '');
+export const markup = (s) => escapeHtml(stripTags(s)).replace(/\*([^*]+)\*/g, '<mark>$1</mark>');
+const plain = (s) => stripTags(s).replace(/\*/g, '');
 
 export function estimateSpeech(text) {
   const t = plain(text).trim();
@@ -48,7 +53,7 @@ export function captionChunks(text, maxWords = 7) {
 export function captionTokens(text) {
   const out = [];
   let marked = false;
-  for (const raw of String(text ?? '').trim().split(/\s+/).filter(Boolean)) {
+  for (const raw of stripTags(text).split(/\s+/).filter(Boolean)) {
     let html = '', plainText = '';
     for (const [k, seg] of raw.split('*').entries()) {
       if (k > 0) marked = !marked;

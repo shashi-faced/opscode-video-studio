@@ -63,6 +63,19 @@ async function main() {
         return done({ ok: true });
       case 'tools':
         return done({ ok: true, tools: TOOL_DEFS });
+      case 'voice-key': {
+        // Called by the app's Settings → Voices screen. The key arrives on standard input (--stdin,
+        // base64 JSON), never on the command line, and is never printed.
+        let p = {};
+        if (flags.stdin) {
+          const chunks = [];
+          for await (const c of process.stdin) chunks.push(c);
+          const raw = Buffer.concat(chunks).toString('utf8').trim();
+          if (raw) p = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+        }
+        const { voiceKeyCommand } = await import('../src/audio/voices-tool.mjs');
+        return done(await voiceKeyCommand(p), 0);
+      }
       case 'agent-manifest': {
         // Read by the Opscode app after install: manifest + tool definitions + entry point.
         const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'agent', 'manifest.json'), 'utf8'));

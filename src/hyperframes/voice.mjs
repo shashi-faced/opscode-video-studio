@@ -160,7 +160,7 @@ export async function hfVoice(params = {}, { cwd = process.cwd(), onProgress = (
   } else fs.rmSync(capFile, { force: true });
 
   const data = {
-    voice, total: plan.total, music: params.musicFile ? 'file' : musicStyle, captions: wantCaptions ? capStyle : false,
+    voice: voices.voiceSummary || voice, total: plan.total, music: params.musicFile ? 'file' : musicStyle, captions: wantCaptions ? capStyle : false,
     scenes: plan.scenes.map((s, i) => ({ ...s, line: lines[i] })), notes: voices.notes || [],
   };
   fs.writeFileSync(path.join(dir, 'voice.json'), JSON.stringify(data, null, 2));
@@ -172,7 +172,7 @@ export async function hfVoice(params = {}, { cwd = process.cwd(), onProgress = (
   ];
   return {
     ok: true,
-    text: `Voice-over made (${voice}${musicStyle !== 'none' || params.musicFile ? `, with ${params.musicFile ? 'your' : musicStyle} music` : ', no music'}): ${audioFile}\n`
+    text: `Voice-over made (${voices.voiceSummary || voice}${musicStyle !== 'none' || params.musicFile ? `, with ${params.musicFile ? 'your' : musicStyle} music` : ', no music'}): ${audioFile}\n`
       + `TOTAL video length: ${plan.total} s. Set data-duration="${plan.total}" on the root, and give the ${lines.length} scene(s) exactly these times:\n${sceneLines}\n`
       + `Animate each scene inside its own time window (start an entrance about 0.2 s after the scene starts).\n`
       + `Paste as the LAST children of the root div:\n  ${paste.join('\n  ')}\n`

@@ -55,7 +55,7 @@ export const SKINS = ['light', 'medium', 'tan', 'dark'];
 // Illustrated scene backgrounds (backgrounds.mjs). Outdoor ones change with "time".
 export const BACKGROUNDS = ['meadow', 'forest', 'mountains', 'beach', 'village', 'city', 'sky', 'space', 'underwater', 'home', 'bedroom', 'classroom', 'office', 'festival'];
 export const TIMES = ['day', 'sunset', 'night'];
-export const VOICE_PROVIDERS = ['edge', 'none'];
+export const VOICE_PROVIDERS = ['edge', 'elevenlabs', 'none'];
 export const TRANSITIONS = ['fade', 'slide', 'zoom', 'cut'];
 export const TAG_TONES = ['accent', 'ok', 'alert'];
 
@@ -258,7 +258,7 @@ export const TOP_FIELDS = {
   cinematic: { type: 'bool', doc: '3D, 16:9: film look with 2.39:1 letterbox bars and a gentle hand-held camera' },
   accent: { type: 'color', doc: 'highlight colour, e.g. #ff9a3c' },
   brand: obj({ name: str(40), logo: { type: 'path' } }),
-  voice: obj({ provider: enm(VOICE_PROVIDERS), voice: str(60), rate: str(8, { doc: 'e.g. +4% or -6%' }) }),
+  voice: obj({ provider: enm(VOICE_PROVIDERS), voice: str(60), rate: str(8, { doc: 'e.g. +4% or -6%' }), narrator: str(60, { doc: 'ElevenLabs only: the narrator\'s voice by name (from video_voices); default picks one' }) }),
   music: obj({ style: enm(MUSIC_STYLES), volume: num(0, 1), file: { type: 'path', doc: 'your own music file instead of generated music' } }),
   captions: obj({
     style: enm(CAPTION_STYLES, { doc: 'line: sentence at the bottom; karaoke: the spoken word lights up; pop: 1-3 big words at a time (reels)' }),

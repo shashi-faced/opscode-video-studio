@@ -148,6 +148,7 @@ export const TOOL_DEFS = [
       required: ['input'],
     },
   },
+  { name: 'video_voices', description: 'Voices for narration and characters. status: which voice service is in use (built-in, or ElevenLabs when the user connected it) and credits left. list: ElevenLabs voices to choose from, best match first, filtered by gender, age, language or a search word. test: speak one short line with a voice (costs a few characters).', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['status', 'list', 'test'] }, gender: { type: 'string', enum: ['male', 'female'] }, age: { type: 'string', enum: ['kid', 'adult', 'old'] }, language: { type: 'string', description: 'hi or en' }, role: { type: 'string', enum: ['narrator', 'character'] }, search: { type: 'string', description: 'e.g. "deep", "cartoon", "calm"' }, voice: { type: 'string', description: 'test: the voice name' }, text: { type: 'string', description: 'test: what to say (short)' } }, required: [] } },
   ...HF_TOOL_DEFS,
 ];
 
@@ -195,6 +196,7 @@ async function speechAssets(act, set, onProgress) {
 
 export async function runTool(name, params = {}, { cwd = process.cwd(), onProgress = () => {} } = {}) {
   if (isHfTool(name)) return runHfTool(name, params, { cwd, onProgress });
+  if (name === 'video_voices') { const { runVoicesTool } = await import('./audio/voices-tool.mjs'); return runVoicesTool(params, { cwd }); }
   const abs = (p) => (p ? path.resolve(cwd, String(p)) : p);
   switch (name) {
     case 'video_templates':
