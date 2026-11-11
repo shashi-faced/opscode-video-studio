@@ -73,6 +73,18 @@ export async function doctor({ install = false, checkNetwork = true } = {}) {
       report.items.push({ name: 'GPU for 3D (optional)', ok: true, detail: g ? 'graphics card works in Chrome (fast 3D)' : 'not available; 3D draws on the CPU, slower and at 2/3 resolution', fix: g ? undefined : 'update the graphics drivers (Linux: Mesa with Vulkan, e.g. sudo apt install mesa-vulkan-drivers)' });
     } catch { /* GPU probe failed: nothing to report */ }
   }
+  // Optional HyperFrames engine for motion-design videos (never required: storyboards do not use it).
+  try {
+    const { runtimeStatus, MIN_NODE, HF_VERSION } = await import('../hyperframes/runtime.mjs');
+    const h = runtimeStatus();
+    report.items.push({
+      name: 'HyperFrames engine (optional)', ok: true,
+      detail: !h.nodeOk ? `needs Node.js ${MIN_NODE} or newer (this is ${h.node}); storyboard videos are not affected`
+        : h.installed ? `installed ${h.version} (${h.sizeMB} MB)${h.version !== HF_VERSION ? `, this release expects ${HF_VERSION}` : ''}${h.ffprobe ? '' : '; ffprobe is missing'}`
+          : 'not installed (about 200 MB, installed the first time a HyperFrames video is made)',
+      fix: !h.nodeOk ? `install Node.js ${MIN_NODE}+ to use HyperFrames videos` : undefined,
+    });
+  } catch { /* optional */ }
   // Optional 3D character pack (never required: 3D characters are built in code without it).
   try {
     const { assetStatus } = await import('../assets/assets.mjs');

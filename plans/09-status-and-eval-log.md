@@ -520,3 +520,11 @@ Findings:
 - Frame progress events now carry the scene number (`sceneAt` in `src/render/render.mjs`); parallel renders report the scene count only.
 - Older hosts are unaffected: without the flag nothing is written.
 - **Checked:** a real render updated the file live (0% → 59%, scene 1 → 3 of 4); tests 139/139 (5 new in `test/progress.test.mjs`).
+
+## v0.15.0: HyperFrames engine for motion-design videos (2026-11-11, plan 16)
+- **New engine:** HyperFrames (Apache 2.0, pinned 0.9.33) installs on first use (196 MB with ffprobe) into the agent's home. Needs Node 22+.
+- **Six tools:** `hyperframes_guide`, `hyperframes_project` (init, add, info), `hyperframes_voice`, `hyperframes_check`, `hyperframes_preview`, `hyperframes_render`.
+- **Voice, music and captions** come from our own code: the voice sets the scene times, music ducks under it, captions are word-timed in the page (Hind font, Hindi works).
+- **Offline and private:** local GSAP and fonts, usage tracking off, only local commands allowed; a traced render made no internet connection from HyperFrames, and it works with the internet off.
+- **Checked:** Hindi 9:16 and English 16:9 videos rendered with sound and captions; a broken page is refused with fixes; tests 157/157 (18 new).
+- **Open:** how often small models write a valid page (one sample passed first try; the gateway timed out on more).

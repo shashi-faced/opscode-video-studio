@@ -1,6 +1,7 @@
 // Agent tool handlers. Each returns { ok, text, image?, data } where `text` is what
 // the model reads: short, concrete, and always says what to do next.
 import fs from 'node:fs';
+import { HF_TOOL_DEFS, isHfTool, runHfTool } from './hyperframes/tools.mjs';
 import path from 'node:path';
 import { validateFile } from './schema/validate.mjs';
 import { prepare } from './pipeline.mjs';
@@ -147,6 +148,7 @@ export const TOOL_DEFS = [
       required: ['input'],
     },
   },
+  ...HF_TOOL_DEFS,
 ];
 
 /** Speed of a render, and a hint when 3D could not use the graphics card. */
@@ -192,6 +194,7 @@ async function speechAssets(act, set, onProgress) {
 }
 
 export async function runTool(name, params = {}, { cwd = process.cwd(), onProgress = () => {} } = {}) {
+  if (isHfTool(name)) return runHfTool(name, params, { cwd, onProgress });
   const abs = (p) => (p ? path.resolve(cwd, String(p)) : p);
   switch (name) {
     case 'video_templates':

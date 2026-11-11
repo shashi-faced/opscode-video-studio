@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, initial-scale=1">
+<script src="assets/gsap.min.js"></script>
+<link rel="stylesheet" href="assets/fonts.css" />
+<style>
+html, body { width: 1080px; height: 1920px; margin: 0; overflow: hidden; }
+body { background: #101827; color: #ffffff; font-family: "Hind", sans-serif; }
+#root { position: relative; width: 1080px; height: 1920px; }
+.clip { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:100px; text-align:center; }
+h1, p { margin: 0; }
+h1 { font-size: 112px; line-height: 1.08; font-weight: 800; }
+.tagline { margin-top: 36px; color: #48e0c1; font-size: 52px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="8" data-width="1080" data-height="1920">
+  <section id="s1" class="clip" data-start="0" data-duration="4" data-track-index="0">
+    <h1 id="s1-title">TaskFlow</h1>
+    <p id="s1-tagline" class="tagline">Plan less. Do more.</p>
+  </section>
+  <section id="s2" class="clip" data-start="4" data-duration="4" data-track-index="0">
+    <h1 id="s2-title">Get TaskFlow<br>today</h1>
+  </section>
+</div>
+<script>
+const tl = gsap.timeline({ paused: true });
+tl.from("#s1-title", { y: 40, duration: 0.6, ease: "power3.out" }, 0);
+tl.from("#s1-tagline", { y: 30, duration: 0.6, ease: "power3.out" }, 0.35);
+tl.from("#s2-title", { opacity: 0, y: 60, duration: 0.6, ease: "power3.out" }, 4.2);
+window.__timelines = window.__timelines || {};
+window.__timelines["main"] = tl;
+</script>
+</body>
+</html>
