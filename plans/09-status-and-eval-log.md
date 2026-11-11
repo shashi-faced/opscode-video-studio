@@ -514,3 +514,9 @@ Findings:
 2. (done) Standalone GitHub repo, tagged releases.
 3. Windows support for the install script (PowerShell variant).
 4. More templates: `timeline`, `comparison`, `logo-reveal`; per-word karaoke captions.
+
+## v0.14.1: live progress file (2026-11-11)
+- **New:** `--progress-file <path>` on the CLI. While a tool runs, the latest stage, done/total, percent and scene are kept in that file as one JSON object (`src/progressFile.mjs`). The Opscode app reads it to answer "are you working?" with real progress.
+- Frame progress events now carry the scene number (`sceneAt` in `src/render/render.mjs`); parallel renders report the scene count only.
+- Older hosts are unaffected: without the flag nothing is written.
+- **Checked:** a real render updated the file live (0% → 59%, scene 1 → 3 of 4); tests 139/139 (5 new in `test/progress.test.mjs`).

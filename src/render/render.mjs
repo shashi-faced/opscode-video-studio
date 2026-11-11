@@ -78,6 +78,12 @@ function writeExtras({ ffmpeg, storyboard, timeline, outFile, outDir, coverFrame
   return out;
 }
 
+/** 1-based number of the scene on screen at `t` seconds (for progress: "scene 4 of 6"). */
+export function sceneAt(timeline, t) {
+  const i = timeline.scenes.findIndex((s) => t < s.end);
+  return i === -1 ? timeline.scenes.length : i + 1;
+}
+
 export async function render(storyboardFile, { out, fps, workers, onProgress = () => {}, voice = 'auto' } = {}) {
   const t0 = Date.now();
   const ffmpeg = findFfmpeg();
@@ -147,7 +153,7 @@ export async function render(storyboardFile, { out, fps, workers, onProgress = (
         await enc.write(buf);
         if (!poster && ms >= posterAt) { poster = path.join(outDir, 'poster.jpg'); fs.writeFileSync(poster, buf); }
         if (!coverFrame && ms >= coverAt) await grabCover(sess);
-        if (f % 30 === 0 || f === frames - 1) onProgress({ stage: 'frames', done: f + 1, total: frames });
+        if (f % 30 === 0 || f === frames - 1) onProgress({ stage: 'frames', done: f + 1, total: frames, scene: sceneAt(timeline, ms / 1000), scenes: timeline.scenes.length });
       }
     } finally {
       addStats(sess.stats);
@@ -175,7 +181,7 @@ export async function render(storyboardFile, { out, fps, workers, onProgress = (
             const buf = await sess.grab(ms, 92);
             await enc.write(buf);
             if (w === 0 && !poster && ms >= posterAt) { poster = path.join(outDir, 'poster.jpg'); fs.writeFileSync(poster, buf); }
-            if (++done % 30 === 0 || done === frames) onProgress({ stage: 'frames', done, total: frames, workers: chunks.length });
+            if (++done % 30 === 0 || done === frames) onProgress({ stage: 'frames', done, total: frames, workers: chunks.length, scenes: timeline.scenes.length });
           }
         } finally { addStats(sess.stats); await sess.close(); }
       } finally {

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { runTool, TOOL_DEFS } from '../src/tools.mjs';
 import { validateFile } from '../src/schema/validate.mjs';
 import { templatesDoc, EXAMPLE } from '../src/docs.mjs';
+import { progressWriter } from '../src/progressFile.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -19,7 +20,9 @@ for (let i = 1; i < argv.length; i++) {
   else pos.push(a);
 }
 const quiet = !!flags.quiet;
-const progress = (p) => { if (!quiet) process.stdout.write(JSON.stringify({ progress: p }) + '\n'); };
+// --progress-file <path>: keep the latest progress in that file for the host app (see src/progressFile.mjs).
+const toFile = progressWriter(typeof flags['progress-file'] === 'string' ? flags['progress-file'] : '', cmd === 'tool' ? pos[0] : cmd);
+const progress = (p) => { toFile(p); if (!quiet) process.stdout.write(JSON.stringify({ progress: p }) + '\n'); };
 const done = (obj, code = 0) => { process.stdout.write(JSON.stringify(obj) + '\n'); process.exit(code); };
 
 const HELP = `opscode-video — storyboard JSON to animated MP4, and video editing
