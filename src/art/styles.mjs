@@ -5,6 +5,7 @@
 //
 // Wording and choices are our own; the reference README (kaomei/stickman-video-director, MIT) inspired
 // the set of styles. No channel names, no copied media.
+import { LOOKS2, LOOK2_ALIASES, looksCss } from './looks2.mjs';
 import { backgroundHtml } from '../compiler/backgrounds.mjs';
 
 const PAPER_GRID = (paper, line) => `linear-gradient(${line} 1px,transparent 1px) 0 0/calc(var(--u)*5.9) calc(var(--u)*5.9),linear-gradient(90deg,${line} 1px,transparent 1px) 0 0/calc(var(--u)*5.9) calc(var(--u)*5.9),${paper}`;
@@ -121,7 +122,7 @@ const NEW_STYLES = {
     grounds: ['radial-gradient(120% 100% at 50% 35%,#1c1915 0%,#0f0e0c 70%)', 'radial-gradient(120% 100% at 30% 30%,#161b20 0%,#0b0e11 70%)', 'radial-gradient(120% 100% at 60% 40%,#1f1714 0%,#0e0a09 72%)'],
   },
 };
-Object.assign(STYLES, NEW_STYLES);
+Object.assign(STYLES, NEW_STYLES, LOOKS2);
 
 
 export const ART_STYLES = Object.keys(STYLES);
@@ -275,6 +276,7 @@ function extraCss(id, s, t, sel, v) {
     out.push('@keyframes docu-grain{0%{transform:translate(0,0)}25%{transform:translate(-3%,2%)}50%{transform:translate(2%,-3%)}75%{transform:translate(-2%,-1%)}}');
     out.push('@keyframes docu-push{from{transform:scale(1.02)}to{transform:scale(1.1)}}');
   }
+  if (s.look2) out.push(looksCss(s, t, sel));
   if (s.flat) {
     out.push(`${sel} .amb{display:none}`);
     out.push(`${sel} .frame{box-shadow:none;border-radius:calc(var(--u)*1.2);border:calc(var(--u)*.3) solid var(--ink)}`);
@@ -287,3 +289,5 @@ function extraCss(id, s, t, sel, v) {
   }
   return out.join('\n');
 }
+// Plan 18 M5 looks (horror now means the horror look, not the survival thriller).
+Object.assign(STYLE_ALIASES, LOOK2_ALIASES);

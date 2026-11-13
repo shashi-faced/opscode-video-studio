@@ -126,7 +126,7 @@ function storyScene(sc, ctx) {
   // Stickman look (plan 14): people are drawn as stickmen, animals and objects flat with an ink outline.
   const stick = !is3d && ctx.isStick?.(sc) ? stickOptions(ctx.art, ctx.vary) : null;
   // Flat vector style: everyone is painted flat with an ink outline, like the animals beside stickmen.
-  const flatInk = !is3d && !stick && ctx.style?.flat ? ctx.theme.ink : null;
+  const flatInk = !is3d && !stick && (ctx.style?.flat || ctx.style?.flatInk) ? ctx.theme.ink : null;
   const charHtml = is3d ? '' : chars.map((c, k) => {
     const firstLine = lines.find(l => String(l.who).toLowerCase() === c.who.id);
     const mood = c.mood || firstLine?.mood || 'happy';

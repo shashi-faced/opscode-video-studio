@@ -1,6 +1,6 @@
 # Plan 18: More video styles and formats
 
-Status (2026-11-13): **M1–M4 released as v0.17.0.** M5–M8 not started. Target: v0.17.0 (M1–M3), v0.18.0 (rest).
+Status (2026-11-13): **M1–M4 released as v0.17.0; M5 released as v0.18.0.** M6–M8 not started (release v0.19.0).
 
 ## 0. M1–M3 as built
 
@@ -13,6 +13,7 @@ Status (2026-11-13): **M1–M4 released as v0.17.0.** M5–M8 not started. Targe
 - **Tests**: `test/styles-formats.test.mjs` (14, including a Chrome test of the hand reveal); full suite **182/182**. Tests no longer read the user's saved ElevenLabs key (`test/setup.mjs`).
 - **Checked by eye** on rendered contact sheets: whiteboard, chalkboard, kinetic and flat-vector, Hindi and English, 9:16 and 16:9, every format.
 - **M4 data and documentary**: `chart` (bar, line, pie, race; numbers count up via `data-cu` in runtime.js), `timeline`, `map` (Natural Earth 1:110m via world-atlas in `src/data/`, ~200 cities, Hindi names, pins, routes, view fitted to the frame), `news` (generic lower third and ticker), style `documentary`. Items light up when the narration names them (`cueTimes`). Recipes `data`, `documentary`, `news`. Tests: `test/data-templates.test.mjs`. Full suite 194/194.
+- **M5 looks batch 2** (`src/art/looks2.mjs`, seed in `src/art/seed.mjs`): `neon` (stickman, glowing; synthwave sun, horizon and rolling grid), `horror` (stickman; desaturated dark, fog, flicker, grain, heavy vignette, creeping zoom of the whole scene, whispered lower-case captions), `retro-pixel` (2D; pictures pixelated by an SVG filter, mono text with hard shadows, motion in steps, pixel stars and ground), `paper-cutout` (2D; torn paper layers and shapes, stop-motion jitter, white sticker edges, paper texture), `watercolor` (2D; painted washes, paint-edged backgrounds and characters, paper grain, serif titles), `comic` (2D; tilted panel with halftone, action lines, outlined characters, narration boxes, oval bubbles, and a new scene field `sfx` for a "POW!" burst), `isometric` (2D; a platform of rising blocks with data flowing between them, placed beside text, faint behind lists and small on centred scenes). Each has 4–5 accent pairs for per-video variety; scenery per scene is seeded and seeked, so frames repeat exactly. Aliases (synthwave, spooky, 8-bit, collage, storybook, comic book, 2.5d…); "horror" now means the horror look, not the survival thriller. Guide notes, "pick by mood" hint and prompt updated. Tests: `test/looks2.test.mjs` (7, one in Chrome). Full suite **201/201**. Rendered and checked: every look in its own format (9:16, 16:9, 1:1) with title, story, quiz or steps, and cta; horror and retro pixel in Hindi 9:16 with voice. Watercolor renders slowest (about 4× real time) because of its paint filters.
 - **Known gaps**: Natural Earth draws Kashmir along de facto lines, not India's official boundary; maps for Indian audiences may need official boundary data. Flat-vector dialogue and story scenes still use the old illustrated backgrounds; the app gallery has no tiles or Format chips yet (M7).
 
 ## 1. Goal

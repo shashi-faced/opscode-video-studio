@@ -11,6 +11,13 @@ export const STYLE_NOTES = {
   kinetic: 'no pictures: the spoken words fly in big, timed to the voice; quotes, motivation, facts',
   'flat-vector': 'clean flat shapes and colours, flat characters; tech, finance, science explainers',
   documentary: 'dark film look, serif titles, grain and slow push-ins; history, true crime, business stories. Pairs with map, timeline and chart scenes',
+  neon: 'glowing synthwave: neon stickmen, a striped sun and a rolling grid; tech, gaming, futurism, "what if"',
+  horror: 'dark, desaturated, flickering light, fog and a slow creeping zoom; whispered captions; creepy facts, unsolved mysteries',
+  'retro-pixel': 'pixel-art pictures, chunky mono text, 8-bit motion in steps; gaming, nostalgia, fun facts',
+  'paper-cutout': 'paper shapes with torn edges and soft shadows, stop-motion jitter, sticker-edged characters; stories, history, finance explainers',
+  watercolor: 'soft painted washes on textured paper, pastel colours, serif titles; kids stories, bedtime, festivals',
+  comic: 'comic panels: halftone dots, action lines, outlined characters, narration boxes, oval speech bubbles; add "sfx": "POW!" to a scene for a burst; stories, satire, kids',
+  isometric: '3/4-angle blocks (buildings, servers) on a platform with data flowing between them; how-it-works, systems, tech and logistics',
 };
 
 export function stylesSection() {
@@ -20,6 +27,7 @@ export function stylesSection() {
     out.push(`- ${id}: ${STYLES[id].label}. ${STYLE_NOTES[id] || ''}${base === 'stickman' ? ' (people are stickmen; sets look "stickman")' : base === 'motion' ? ' (text only; characters are not drawn)' : ' (works with the 2D look)'}`);
   }
   out.push('- Every video in a style varies a little by itself (colours, motion, transitions), so videos never look copied. Do not set "transition" unless the user asks.');
+  out.push('- Pick by mood: horror for scary or mystery topics, neon for tech/gaming/future, comic or watercolor for kids, documentary for history and true crime, isometric for how-it-works.');
   out.push('- whiteboard / chalkboard: keep on-screen text short; the hand writes it while the voice speaks. kinetic: the narration IS the picture, so write strong short sentences and put *stars* on 1-2 key words.');
   return out.join('\n');
 }

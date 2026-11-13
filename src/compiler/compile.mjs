@@ -9,6 +9,7 @@ import { PLATFORMS, safePixels } from '../schema/platforms.mjs';
 import { resolveTheme, themeCss, fontFiles } from './themes.mjs';
 import { styleTheme, styleCss, STYLES, styleBase } from '../art/styles.mjs';
 import { variety, entranceCss, flatDecor } from '../art/variety.mjs';
+import { looksDecor, looksDefs } from '../art/looks2.mjs';
 import { HAND_SVG } from './draw.mjs';
 import { TEMPLATE_HTML, TEMPLATE_CSS } from './templates.mjs';
 import { imageSize } from '../util/imagesize.mjs';
@@ -86,7 +87,7 @@ export function compile(storyboard, timeline, { baseDir, buildDir, progress = tr
       tl: timeline.scenes[i], dur: timeline.scenes[i]?.duration || 4, style, styleId, vary, theme };
     const inner = TEMPLATE_HTML[sc.template](sc, ctx);
     const tr = sc.transition || (vary ? vary.transitions[i % vary.transitions.length] : 'fade');
-    const decor = style?.flat ? flatDecor(vary, i, theme) : '';
+    const decor = style?.flat ? flatDecor(vary, i, theme) : style?.look2 ? looksDecor(style, vary, i, theme, sc, FORMAT_INDEX[storyboard.format]) : '';
     return `<section class="scene tr-${tr}" data-i="${i}" style="--sd:${(timeline.scenes[i]?.duration || 4).toFixed(2)}s">${decor}${inner}</section>`;
   }).join('\n');
 
@@ -173,7 +174,7 @@ ${themeCss(theme)}
 html,body{margin:0;background:#000}
 #stage{width:${stage.width}px;height:${stage.height}px;--sh:${stage.height}px;--ground:${layout.ground}px;--chh:${layout.chh}px;${safeVars}}
 ${TEMPLATE_CSS}${styled || storyboard.scenes.some(isStick) ? styleCss(styled ? storyboard.art : (storyboard.art || { style: 'line-art' }), vary) : ''}${entranceCss(vary)}</style></head>
-<body><div id="stage" class="${stageCls}" data-platform="${storyboard.platform || ''}"><div class="amb">${stars}<div class="blob"></div><div class="blob b2"></div></div>${style?.draw ? '<div class="wb-board"></div>' : ''}${has3d ? worldBody : ''}
+<body><div id="stage" class="${stageCls}" data-platform="${storyboard.platform || ''}"><div class="amb">${stars}<div class="blob"></div><div class="blob b2"></div></div>${looksDefs(style)}${style?.draw ? '<div class="wb-board"></div>' : ''}${has3d ? worldBody : ''}
 ${brand}${prog}
 ${scenesHtml}
 <div class="cap"><span></span></div>${style?.draw ? `<div class="wb-hand">${HAND_SVG[style.draw]}</div>` : ''}</div>

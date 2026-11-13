@@ -122,6 +122,7 @@ export const COMMON_FIELDS = {
   mascot: enm([...MASCOTS, 'none'], { doc: 'illustrated character: robot, dev, founder' }),
   mascotMood: enm(MOODS, { doc: 'happy or worried (dev only)' }),
   transition: enm(TRANSITIONS, { doc: 'how the scene enters' }),
+  sfx: str(14, { doc: 'comic style only: a burst word on the panel, e.g. "POW!", "WOW!"' }),
 };
 
 /** Format templates (plan 18): they fit any video type. */
@@ -378,7 +379,7 @@ export const TOP_FIELDS = {
   format: enm(FORMATS, { doc: '16:9 YouTube/website, 9:16 Reels/Shorts, 1:1 square, 4:5 feed post. Usually set by "platform"' }),
   theme: enm(THEMES),
   look: enm(LOOKS, { doc: '2d (illustrated cartoon, default), 3d (3D characters and worlds), or stickman (hand-drawn stick figures in an art style)' }),
-  art: obj({ style: enm(ART_STYLES, { doc: 'stickman art style' }), theme: enm(['light', 'dark'], { doc: 'classic-bw only: black on white (light) or white on black (dark)' }) }, { doc: 'look "stickman": { "style": "line-art" | "classic-bw" | "modern-pop" | "retro-tv" | "cozy-color" | "cozy-story" | "prehistoric" | "historical" | "amber-noir" | "noir-thriller" }' }),
+  art: obj({ style: enm(ART_STYLES, { doc: 'the art style of the whole video (see Art styles)' }), theme: enm(['light', 'dark'], { doc: 'classic-bw only: black on white (light) or white on black (dark)' }) }, { doc: '{ "style": "<id>" }: one of the art styles listed in the guide; stickman styles set look "stickman"' }),
   models: enm(['auto', 'built-in', 'pack'], { doc: '3D only: auto uses the best downloaded models where installed; built-in = characters made in code for everyone; pack = downloaded models for every kind that has one' }),
   scenery: enm(['auto', 'built-in'], { doc: '3D only: auto uses the downloaded world pack (furniture, trees, houses, buildings) where installed; built-in = places made in code' }),
   cinematic: { type: 'bool', doc: '3D, 16:9: film look with 2.39:1 letterbox bars and a gentle hand-held camera' },
