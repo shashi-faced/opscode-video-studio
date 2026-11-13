@@ -10,6 +10,26 @@
   let cur = -1, lastCap = null;
   const popCaps = stage.classList.contains('cap-pop');
 
+  // Numbers that count (plan 18 M4): data-cu="t:value|t:value" in seconds from the scene start.
+  const counters = sceneEls.map((el) => [...el.querySelectorAll('[data-cu]')].map((c) => {
+    const dec = +c.dataset.dec || 0;
+    const nf = new Intl.NumberFormat(c.dataset.loc || 'en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec, useGrouping: c.dataset.grp !== '0' });
+    return { b: c.querySelector('b'), nf, stops: c.dataset.cu.split('|').map((x) => x.split(':').map(Number)), last: null };
+  }));
+  const ease = (x) => 1 - Math.pow(1 - x, 3);
+  function countAt(i, t) {
+    for (const c of counters[i]) {
+      const s = c.stops;
+      let v = s[0][1];
+      if (t >= s[s.length - 1][0]) v = s[s.length - 1][1];
+      else for (let k = 1; k < s.length; k++) {
+        if (t < s[k][0]) { if (t > s[k - 1][0]) { const f = (t - s[k - 1][0]) / (s[k][0] - s[k - 1][0]); v = s[k - 1][1] + (s[k][1] - s[k - 1][1]) * (s.length > 2 ? f : ease(f)); } else v = s[k - 1][1]; break; }
+      }
+      const txt = c.nf.format(v);
+      if (txt !== c.last) { c.b.textContent = txt; c.last = txt; }
+    }
+  }
+
   function fitOne(el, scale) {
     const base = +el.dataset.max * U;
     const max = base * scale, lines = +el.dataset.lines || 2, lh = +el.dataset.lh || 1.1, min = base * 0.38;
@@ -62,12 +82,88 @@
     sizeMedia(scene);
   }
 
+  // ---------- whiteboard / chalkboard: a hand draws each block in turn (plan 18) ----------
+  const drawOn = stage.classList.contains('draw-on');
+  const hand = stage.querySelector('.wb-hand');
+  const drawPlan = [];   // per scene: [{ el, x, y, w, h, lines, t0, t1, clip }]
+  const DRAW_SEL = '.fit, .chwrap, .st-prop, .num, .tick, .frame, .fmt-icon, .qz-l, .my-tag, .pl-or, .rk-num, .stripe, .button, .chip, .tag, .badge, .avatar, .logo, .qz-timer';
+  function planDraw(i) {
+    const scene = sceneEls[i];
+    const sr = stage.getBoundingClientRect(), k = stage.offsetWidth / (sr.width || 1);
+    const sc = TL.scenes[i];
+    const items = [];
+    if (scene.querySelector('.t-chat, .t-kinetic')) { drawPlan[i] = items; return; }
+    for (const el of scene.querySelectorAll(DRAW_SEL)) {
+      // Speech bubbles, captions and anything that appears at a reveal (truth card, quiz answer) keep their own timing.
+      if (el.closest('.bubble, .cap, .my-truth, .qz-explain, .pl-pct, .pl-bar') || items.some(it => it.el.contains(el))) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      const isText = el.classList.contains('fit');
+      const len = (el.textContent || '').trim().length;
+      const lh = isText ? (parseFloat(getComputedStyle(el).fontSize) || 20) * (+el.dataset.lh || 1.15) * (1 / k) : 0;
+      const lines = isText ? Math.max(1, Math.round(r.height / Math.max(1, lh))) : 1;
+      const d = isText ? Math.min(1.9, Math.max(0.45, 0.3 + len * 0.035)) : el.classList.contains('chwrap') ? 1.0 : el.classList.contains('frame') ? 1.2 : el.classList.contains('st-prop') ? 0.7 : 0.45;
+      const down = /\b(chwrap|st-prop|fmt-icon|avatar|logo)\b/.test(el.className.baseVal ?? el.className);
+      items.push({ el, x: (r.left - sr.left) * k, y: (r.top - sr.top) * k, w: r.width * k, h: r.height * k, lines, d, down, clip: null });
+    }
+    // Draw in order, starting just after the scene starts; follow the voice when there is one.
+    const gap = 0.06;
+    let total = items.reduce((n, it) => n + it.d + gap, 0);
+    const voiceSpan = sc.parts && sc.parts.length ? sc.parts[sc.parts.length - 1].end - sc.start - 0.15 : 0;
+    let f = 1;
+    if (voiceSpan > 0 && total < voiceSpan * 0.7) f = Math.min(2, (voiceSpan * 0.7) / total);
+    if (total * f > sc.duration * 0.85) f = (sc.duration * 0.85) / total;
+    let t = 0.15;
+    for (const it of items) { it.t0 = t; it.t1 = t + it.d * f; t = it.t1 + gap * f; }
+    drawPlan[i] = items;
+  }
+  function setClip(it, v) { if (it.clip !== v) { it.el.style.clipPath = v; it.clip = v; } }
+  function drawAt(i, t) {
+    const items = drawPlan[i];
+    if (!items) return;
+    let pen = null;
+    for (const it of items) {
+      if (t < it.t0) { setClip(it, 'inset(0 100% 0 0)'); continue; }
+      if (t >= it.t1) { setClip(it, ''); continue; }
+      const p = (t - it.t0) / (it.t1 - it.t0);
+      if (it.lines > 1) {
+        // Line by line: earlier lines whole, the current one up to the pen.
+        const line = Math.min(it.lines - 1, Math.floor(p * it.lines));
+        const q = p * it.lines - line;
+        const top = (line / it.lines) * 100, bot = ((line + 1) / it.lines) * 100, x = q * 100;
+        setClip(it, `polygon(0 0,100% 0,100% ${top}%,${x}% ${top}%,${x}% ${bot}%,0 ${bot}%)`);
+        pen = { x: it.x + q * it.w, y: it.y + (line + 0.75) * (it.h / it.lines) };
+      } else if (it.down) {
+        // Figures and icons: drawn from the top down, the pen moving side to side like shading.
+        setClip(it, `inset(0 0 ${(100 - p * 100).toFixed(2)}% 0)`);
+        const zig = Math.abs(((p * 7) % 2) - 1);
+        pen = { x: it.x + it.w * (0.2 + 0.6 * zig), y: it.y + p * it.h };
+      } else {
+        setClip(it, `inset(0 ${(100 - p * 100).toFixed(2)}% 0 0)`);
+        pen = { x: it.x + p * it.w, y: it.y + it.h * 0.62 };
+      }
+    }
+    if (!hand) return;
+    if (pen) {
+      hand.style.display = 'block';
+      hand.style.left = pen.x.toFixed(1) + 'px';
+      hand.style.top = pen.y.toFixed(1) + 'px';
+      hand.dataset.last = `${pen.x}|${pen.y}`;
+    } else {
+      // Between blocks the hand waits where it stopped; after the last block it leaves the board.
+      const last = items.length ? items[items.length - 1].t1 : 0;
+      const waiting = items.some(it => t < it.t0) && t > 0.15;
+      hand.style.display = waiting || (t < last + 0.25 && t >= last) ? 'block' : 'none';
+    }
+  }
+
   async function layout() {
     await document.fonts.ready;
     await Promise.all([...stage.querySelectorAll('img')].map(img => img.decode().catch(() => {})));
     for (const scene of sceneEls) {
       scene.classList.add('on');
       layoutScene(scene);
+      if (drawOn) planDraw(sceneEls.indexOf(scene));
       scene.classList.remove('on');
     }
   }
@@ -143,6 +239,8 @@
       if (heads) place3d(i, heads);
     }
     for (const a of sceneEls[i].getAnimations({ subtree: true })) { a.pause(); a.currentTime = local; }
+    if (drawOn) drawAt(i, local / 1000);
+    if (counters[i].length) countAt(i, local / 1000);
     if (amb) for (const a of amb.getAnimations({ subtree: true })) { a.pause(); a.currentTime = ms; }
     let capObj = null;
     for (const c of sc.captions) if (ms >= c.start * 1000 && ms < c.end * 1000) capObj = c;

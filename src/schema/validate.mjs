@@ -6,7 +6,9 @@ import path from 'node:path';
 import { TEMPLATES, COMMON_FIELDS, TOP_FIELDS, DEFAULTS, FORMATS, CHARACTER_KINDS, POSES, CHARACTER_MOODS, POSITIONS, ENTRANCES, SIZES, BACKGROUNDS, TIMES, VIDEO_TYPES } from './spec.mjs';
 import { TYPE_RECIPES, TYPE_ALIASES } from './types.mjs';
 import { PLATFORMS, PLATFORM_IDS, resolvePlatform } from './platforms.mjs';
-import { STYLE_ALIASES, ART_STYLES } from '../art/styles.mjs';
+import { STYLE_ALIASES, ART_STYLES, styleBase } from '../art/styles.mjs';
+import { FORMAT_TEMPLATES, DATA_TEMPLATES } from './spec.mjs';
+import { place as mapPlace, country as mapCountry, regionBox, cityNames } from '../art/maps.mjs';
 import { resolveIcon } from '../art/props.mjs';
 import { CAPTION_STYLES, CAPTION_POSITIONS, CAPTION_TIMINGS, LOOKS, CAMERAS, LINE_SHOTS, DESIGN, NEAR_PROPS, WEATHER } from './spec.mjs';
 import { loadLibraryCharacter } from '../characters/library.mjs';
@@ -52,7 +54,20 @@ const FORMAT_ALIASES = {
 const CAPTION_ALIASES = { word: 'karaoke', words: 'karaoke', highlight: 'karaoke', 'word-by-word': 'pop', big: 'pop', bold: 'pop', reel: 'pop', tiktok: 'pop', subtitle: 'line', subtitles: 'line', sentence: 'line', normal: 'line', classic: 'line', default: 'line' };
 const TEMPLATE_ALIASES = {
   'story-scene': 'story', cartoon: 'story', narration: 'story', 'title-card': 'story', 'the-end': 'story', scene: 'story', animation: 'story', storybook: 'story',
-  conversation: 'dialogue', talk: 'dialogue', chat: 'dialogue', dialog: 'dialogue', speech: 'dialogue', conversations: 'dialogue',
+  conversation: 'dialogue', talk: 'dialogue', dialog: 'dialogue', speech: 'dialogue', conversations: 'dialogue',
+  // Plan 18 formats.
+  countdown: 'rank', top: 'rank', 'top-n': 'rank', 'top-10': 'rank', 'top-5': 'rank', ranking: 'rank', ranked: 'rank', 'list-item': 'rank', number: 'rank',
+  facts: 'fact', 'did-you-know': 'fact', 'fun-fact': 'fact', 'rapid-fire': 'fact', 'fact-card': 'fact',
+  'myth-vs-fact': 'myth', 'myth-vs-truth': 'myth', 'myth-truth': 'myth', myths: 'myth', 'myth-buster': 'myth', 'fact-check': 'myth',
+  question: 'quiz', mcq: 'quiz', 'quiz-question': 'quiz', 'guess': 'quiz', riddle: 'quiz', test: 'quiz', trivia: 'quiz',
+  'would-you-rather': 'poll', wyr: 'poll', versus: 'poll', vs: 'poll', 'this-or-that': 'poll', choice: 'poll', vote: 'poll',
+  // Plan 18 M4: data and documentary.
+  graph: 'chart', 'bar-chart': 'chart', 'bar-graph': 'chart', bars: 'chart', 'line-chart': 'chart', 'line-graph': 'chart', trend: 'chart', 'pie-chart': 'chart', pie: 'chart', donut: 'chart', 'donut-chart': 'chart',
+  'bar-race': 'chart', 'bar-chart-race': 'chart', race: 'chart', 'chart-race': 'chart', data: 'chart', 'data-chart': 'chart', infographic: 'chart',
+  history: 'timeline', 'time-line': 'timeline', chronology: 'timeline', events: 'timeline', milestones: 'timeline', journey: 'timeline', years: 'timeline',
+  'world-map': 'map', geography: 'map', route: 'map', location: 'map', locations: 'map', places: 'map', country: 'map', countries: 'map', globe: 'map',
+  newsroom: 'news', breaking: 'news', 'breaking-news': 'news', bulletin: 'news', 'news-flash': 'news', 'news-report': 'news', 'news-update': 'news',
+  'chat-story': 'chat', 'text-story': 'chat', messages: 'chat', 'text-message': 'chat', 'text-messages': 'chat', sms: 'chat', whatsapp: 'chat', imessage: 'chat', texting: 'chat', 'message-thread': 'chat',
   'how-to': 'steps', howto: 'steps', process: 'steps', procedure: 'steps', tutorial: 'steps', recipe: 'steps', numbered: 'steps', step: 'steps',
   intro: 'title', hero: 'title', opening: 'title', cover: 'title',
   screenshot: 'feature', demo: 'feature', showcase: 'feature', screen: 'feature',
@@ -77,6 +92,10 @@ const FIELD_ALIASES = {
 const TEMPLATE_FIELD_ALIASES = {
   story: { bg: 'background', scene: 'background', location: 'background', place: 'background', setting: 'background', chars: 'characters', cast: 'characters', people: 'characters', actors: 'characters', title: 'headline', heading: 'headline', caption: 'text', description: 'text', line: 'text', dialogue: 'lines', dialog: 'lines', conversation: 'lines', speech: 'lines', timeOfDay: 'time' },
   dialogue: { bg: 'background', scene: 'background', location: 'background', place: 'background', setting: 'background', chars: 'characters', cast: 'characters', people: 'characters', dialogue: 'lines', dialog: 'lines', conversation: 'lines', speech: 'lines', messages: 'lines', timeOfDay: 'time' },
+  chart: { items: 'data', series: 'data', values: 'data', rows: 'data', type: 'kind', chart: 'kind', years: 'steps', title: 'headline', heading: 'headline', unit: 'suffix', currency: 'prefix' },
+  timeline: { items: 'events', milestones: 'events', dates: 'events', title: 'headline', heading: 'headline' },
+  map: { places: 'pins', cities: 'pins', markers: 'pins', points: 'pins', path: 'route', journey: 'route', countries: 'highlight', area: 'region', focus: 'region', title: 'headline', heading: 'headline', text: 'subline' },
+  news: { title: 'headline', heading: 'headline', tag: 'kicker', label: 'kicker', text: 'subline', description: 'subline', details: 'subline', headlines: 'ticker', location: 'place', city: 'place', photo: 'image', picture: 'image' },
   steps: { items: 'steps', bullets: 'steps', points: 'steps', list: 'steps', title: 'headline', heading: 'headline' },
 };
 
@@ -105,6 +124,58 @@ function normCharacter(c, p, warn) {
     if (v) { warn(`${p}.near`, `"${o.near}" changed to "${v}"`); o.near = v; } else { warn(`${p}.near`, `"${o.near}" is not a prop; removed (near takes a prop, not a character or place)`); delete o.near; }
   }
   return o;
+}
+
+const toNum = (v) => (typeof v === 'number' ? v : typeof v === 'string' && /^\s*[-+]?[\d,]*\.?\d+\s*%?\s*$/.test(v) ? +v.replace(/[,%\s]/g, '') : v);
+/** Chart data: {"India": 5} objects, [label, value] pairs and number strings ("1,200") become rows. */
+function normChart(s, at, warn) {
+  if (typeof s.kind === 'string') { const k = s.kind.toLowerCase(); s.kind = /pie|donut/.test(k) ? 'pie' : /race/.test(k) ? 'race' : /line|trend|area/.test(k) ? 'line' : /bar|column/.test(k) ? 'bar' : s.kind; }
+  if (s.steps === undefined && Array.isArray(s.years)) { s.steps = s.years; delete s.years; }
+  if (isObj(s.data) && !Array.isArray(s.data)) { s.data = Object.entries(s.data).map(([label, value]) => (Array.isArray(value) ? { label, values: value } : { label, value })); warn(`${at}.data`, 'changed to a list of { label, value }'); }
+  if (Array.isArray(s.data)) s.data = s.data.map((d) => {
+    if (Array.isArray(d)) return Array.isArray(d[1]) ? { label: String(d[0]), values: d[1].map(toNum) } : { label: String(d[0]), value: toNum(d[1]) };
+    if (!isObj(d)) return d;
+    const o = { ...d };
+    if (o.label === undefined && (o.name ?? o.x ?? o.year) !== undefined) { o.label = String(o.name ?? o.x ?? o.year); delete o.name; delete o.x; delete o.year; }
+    if (typeof o.label === 'number') o.label = String(o.label);
+    if (o.value === undefined && o.y !== undefined) { o.value = o.y; delete o.y; }
+    if (o.value !== undefined) o.value = toNum(o.value);
+    if (Array.isArray(o.values)) o.values = o.values.map(toNum);
+    return o;
+  });
+  if (Array.isArray(s.steps)) s.steps = s.steps.map(String);
+  if (typeof s.highlight === 'number') s.highlight = String(s.highlight);
+  if (s.kind === undefined) s.kind = Array.isArray(s.data) && s.data.some((d) => isObj(d) && Array.isArray(d.values)) ? 'race' : 'bar';
+}
+
+/** Checks the schema cannot express: chart rows match the kind; map places are known. */
+function dataChecks(s, p, errors, warnings) {
+  if (s.template === 'chart' && Array.isArray(s.data)) {
+    const race = s.kind === 'race';
+    s.data.forEach((d, j) => {
+      if (!isObj(d)) return;
+      if (race && !Array.isArray(d.values)) errors.push({ path: `${p}.data[${j}]`, message: 'a race needs "values" (one number per step)', fix: 'e.g. { "label": "India", "values": [3, 5, 9] }' });
+      if (!race && typeof d.value !== 'number') errors.push({ path: `${p}.data[${j}].value`, message: `a ${s.kind} chart needs a number in "value"`, fix: 'e.g. { "label": "2024", "value": 42 }' });
+    });
+    const max = { bar: 10, line: 24, pie: 8, race: 16 }[s.kind];
+    if (max && s.data.length > max) warnings.push({ path: `${p}.data`, message: `a ${s.kind} chart shows at most ${max} items; the rest are left out` });
+    if (race) {
+      const n = Array.isArray(s.steps) ? s.steps.length : 0;
+      if (n < 2) errors.push({ path: `${p}.steps`, message: 'a race needs at least 2 steps', fix: 'add "steps": ["2000", "2010", "2020"] (one per value)' });
+      else s.data.forEach((d, j) => { if (isObj(d) && Array.isArray(d.values) && d.values.length !== n) warnings.push({ path: `${p}.data[${j}].values`, message: `has ${d.values.length} values for ${n} steps; extra ones are ignored` }); });
+    }
+    if (s.kind === 'pie' && s.data.some((d) => isObj(d) && d.value < 0)) errors.push({ path: `${p}.data`, message: 'a pie cannot have negative values', fix: 'use a bar chart' });
+  }
+  if (s.template === 'map') {
+    const unknown = (name) => `no place called "${name}"`;
+    const fix = `use a country name, a big city (${cityNames().slice(0, 8).join(', ')}…) or { "lat": .., "lon": .. }`;
+    (Array.isArray(s.highlight) ? s.highlight : []).forEach((c, j) => { if (!mapCountry(c)) errors.push({ path: `${p}.highlight[${j}]`, message: `no country called "${c}"`, fix: 'use the English country name, e.g. "India", "United Kingdom", "USA"' }); });
+    (Array.isArray(s.pins) ? s.pins : []).forEach((x, j) => { if (isObj(x) && !mapPlace(x)) errors.push({ path: `${p}.pins[${j}]`, message: unknown(x.place ?? x.label ?? '?'), fix }); });
+    (Array.isArray(s.route) ? s.route : []).forEach((x, j) => { if (!mapPlace(x)) errors.push({ path: `${p}.route[${j}]`, message: unknown(x), fix }); });
+    if (Array.isArray(s.route) && s.route.length === 1) warnings.push({ path: `${p}.route`, message: 'a route needs 2 places or more; use "pins" for one' });
+    if (typeof s.region === 'string' && !regionBox(s.region) && !mapCountry(s.region)) warnings.push({ path: `${p}.region`, message: `unknown region "${s.region}"; the map fits what it shows` });
+    if (!s.highlight?.length && !s.pins?.length && !s.route?.length && !s.region) warnings.push({ path: p, message: 'the map shows nothing in particular; add "highlight", "pins" or "route"' });
+  }
 }
 
 function normLine(l, p, warn) {
@@ -145,11 +216,21 @@ export function normalise(input, warnings) {
   if (typeof sb.look === 'string') { const v = aliasOf(sb.look, LOOKS, LOOK_ALIASES); if (v && v !== sb.look) { warn('look', `"${sb.look}" changed to "${v}"`); sb.look = v; } }
   // Stickman art style: "art": { "style" }. A bare string or a style name in "look" also works.
   if (typeof sb.art === 'string') sb.art = { style: sb.art };
-  if (typeof sb.look === 'string' && !LOOKS.includes(sb.look) && aliasOf(sb.look, ART_STYLES, STYLE_ALIASES)) { warn('look', `"${sb.look}" is a stickman art style: look "stickman", art.style "${aliasOf(sb.look, ART_STYLES, STYLE_ALIASES)}"`); sb.art = { ...(isObj(sb.art) ? sb.art : {}), style: aliasOf(sb.look, ART_STYLES, STYLE_ALIASES) }; sb.look = 'stickman'; }
+  if (typeof sb.look === 'string' && !LOOKS.includes(sb.look) && aliasOf(sb.look, ART_STYLES, STYLE_ALIASES)) {
+    const st = aliasOf(sb.look, ART_STYLES, STYLE_ALIASES), base = styleBase(st) === 'stickman' ? 'stickman' : '2d';
+    warn('look', `"${sb.look}" is an art style: look "${base}", art.style "${st}"`);
+    sb.art = { ...(isObj(sb.art) ? sb.art : {}), style: st };
+    sb.look = base;
+  }
   if (isObj(sb.art)) {
     sb.art = { ...sb.art };
     if (typeof sb.art.style === 'string') { const v = aliasOf(sb.art.style, ART_STYLES, STYLE_ALIASES); if (v && v !== sb.art.style) { warn('art.style', `"${sb.art.style}" changed to "${v}"`); sb.art.style = v; } else if (!v) { warn('art.style', `"${sb.art.style}" is not an art style (${ART_STYLES.join(', ')}); line-art used`); sb.art.style = 'line-art'; } }
-    if (sb.look === undefined && sb.art.style) { warn('look', 'art.style is set, so look is "stickman"'); sb.look = 'stickman'; }
+    // Stickman styles need the stickman look; the others (kinetic, flat-vector) work with the 2D look.
+    if (sb.look === undefined && sb.art.style) {
+      const base = styleBase(sb.art.style);
+      if (base === 'stickman') { warn('look', 'art.style is set, so look is "stickman"'); sb.look = 'stickman'; } else sb.look = '2d';
+    }
+    if (sb.look === '2d' && sb.art.style && styleBase(sb.art.style) === 'stickman' && ART_STYLES.includes(sb.art.style)) { warn('look', `art style "${sb.art.style}" draws stickmen, so look is "stickman"`); sb.look = 'stickman'; }
     if (typeof sb.art.theme === 'string') sb.art.theme = /dark|black|night/i.test(sb.art.theme) ? 'dark' : 'light';
   }
   if (sb.look === 'stickman' && !(isObj(sb.art) && sb.art.style)) sb.art = { ...(isObj(sb.art) ? sb.art : {}), style: 'line-art' };
@@ -286,7 +367,11 @@ export function normalise(input, warnings) {
       else s[k] = v;
     }
     if (typeof s.template === 'string') {
-      const t = s.template.trim().toLowerCase();
+      const t0 = s.template.trim().toLowerCase();
+      // "would you rather", "top_10" and "Myth vs Truth" find their template like "would-you-rather".
+      const t = TEMPLATES[t0] || TEMPLATE_ALIASES[t0] ? t0 : key(t0).replace(/[^a-z0-9-]/g, '');
+      const kindHint = /pie|donut/.test(t) ? 'pie' : /race/.test(t) ? 'race' : /line|trend/.test(t) ? 'line' : /bar/.test(t) ? 'bar' : null;
+      if (TEMPLATE_ALIASES[t] === 'chart' && kindHint && s.kind === undefined) s.kind = kindHint;
       if (!TEMPLATES[t] && TEMPLATE_ALIASES[t]) { warn(`scenes[${i}].template`, `"${s.template}" changed to "${TEMPLATE_ALIASES[t]}"`); s.template = TEMPLATE_ALIASES[t]; }
       else s.template = t;
     }
@@ -300,6 +385,21 @@ export function normalise(input, warnings) {
     if (s.template === 'stat' && Array.isArray(s.items)) {
       s.items = s.items.map(it => typeof it === 'string' ? (() => { const m = it.match(/^(\S+)\s+(.*)$/); return m ? { value: m[1], label: m[2] } : { value: it, label: '' }; })() : it);
     }
+    if (s.template === 'chart') normChart(s, `scenes[${i}]`, warn);
+    if (s.template === 'map') {
+      for (const k of ['highlight', 'route']) if (typeof s[k] === 'string') s[k] = s[k].split(/\s*(?:,|;|→|->|>|\bto\b)\s*/).filter(Boolean);
+      if (s.highlight === undefined && s.countries !== undefined) { s.highlight = [].concat(s.countries); delete s.countries; }
+      if (typeof s.pins === 'string') s.pins = s.pins.split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+      if (Array.isArray(s.pins)) s.pins = s.pins.map((p) => (typeof p === 'string' ? { place: p } : p));
+    }
+    if (s.template === 'timeline' && Array.isArray(s.events)) {
+      s.events = s.events.map((e) => {
+        if (typeof e === 'string') { const m = e.match(/^\s*([^:–—-]{1,14}?)\s*[:–—-]\s*(.+)$/); return m ? { year: m[1], title: m[2] } : { title: e }; }
+        if (isObj(e) && e.year === undefined && (e.date ?? e.when) !== undefined) { const { date, when, ...rest } = e; return { ...rest, year: String(date ?? when) }; }
+        return e;
+      }).map((e) => (isObj(e) && typeof e.year === 'number' ? { ...e, year: String(e.year) } : e));
+    }
+    if (s.template === 'news' && typeof s.ticker === 'string') s.ticker = s.ticker.split(/\s*[|•]\s*/).filter(Boolean);
     if (s.template === 'story' || s.template === 'dialogue') {
       if (Array.isArray(s.characters)) s.characters = s.characters.map((c, j) => normCharacter(c, `scenes[${i}].characters[${j}]`, warn));
       if (Array.isArray(s.lines)) s.lines = s.lines.map((l, j) => normLine(l, `scenes[${i}].lines[${j}]`, warn));
@@ -434,6 +534,7 @@ export function validate(input, { baseDir = process.cwd(), limits = {} } = {}) {
         checkField(spec, s[k], `${p}.${k}`, errors, warnings, ctx);
       }
       for (const k of Object.keys(s)) if (!(k in fields)) warnings.push({ path: `${p}.${k}`, message: `field "${k}" is not used by template "${s.template}"; ignored` });
+      if (s.template === 'chart' || s.template === 'map') dataChecks(s, p, errors, warnings);
       if (Array.isArray(s.highlights)) s.highlights.forEach((h, j) => {
         if (isObj(h) && h.x <= 1 && h.w <= 1 && h.x + h.w > 1.001) errors.push({ path: `${p}.highlights[${j}]`, message: 'box goes past the right edge (x + w > 1)', fix: `make w at most ${(1 - h.x).toFixed(2)}` });
         if (isObj(h) && h.y <= 1 && h.h <= 1 && h.y + h.h > 1.001) errors.push({ path: `${p}.highlights[${j}]`, message: 'box goes past the bottom edge (y + h > 1)', fix: `make h at most ${(1 - h.y).toFixed(2)}` });
@@ -445,7 +546,7 @@ export function validate(input, { baseDir = process.cwd(), limits = {} } = {}) {
       if (!recipe.first.includes(sb.scenes[0]?.template)) warnings.push({ path: 'scenes[0]', message: `a ${typeName} video usually starts with: ${recipe.first.join(' or ')}` });
       if (!recipe.last.includes(sb.scenes.at(-1)?.template)) warnings.push({ path: `scenes[${sb.scenes.length - 1}]`, message: `a ${typeName} video usually ends with: ${recipe.last.join(' or ')}` });
     }
-    sb.scenes.forEach((s, i) => { if (isObj(s) && TEMPLATES[s.template] && !recipe.templates.includes(s.template)) warnings.push({ path: `scenes[${i}].template`, message: `"${s.template}" does not fit a ${typeName} video; good templates: ${recipe.templates.join(', ')}` }); });
+    sb.scenes.forEach((s, i) => { if (isObj(s) && TEMPLATES[s.template] && !FORMAT_TEMPLATES.includes(s.template) && !DATA_TEMPLATES.includes(s.template) && !recipe.templates.includes(s.template)) warnings.push({ path: `scenes[${i}].template`, message: `"${s.template}" does not fit a ${typeName} video; good templates: ${recipe.templates.join(', ')}` }); });
 
     // Every character a scene uses must be in the cast (or be a plain character kind).
     const castIds = new Set((Array.isArray(sb.cast) ? sb.cast : []).filter(isObj).flatMap(c => [c.id, c.name && slugId(c.name)]).filter(Boolean));

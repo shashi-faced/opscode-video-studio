@@ -54,6 +54,7 @@ before(async () => {
   process.env.OPSCODE_VIDEO_HOME = home;
   process.env.OPSCODE_ELEVENLABS_BASE = `http://127.0.0.1:${server.address().port}`;
   delete process.env.OPSCODE_ELEVENLABS_KEY;
+  delete process.env.OPSCODE_IGNORE_SAVED_VOICE_KEY; // this file uses its own home folder and a fake API
   const { findFfmpeg } = await import('../src/deps/locate.mjs');
   const f = path.join(home, 'tone.mp3');
   execFileSync(findFfmpeg(), ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=1', '-ar', '44100', '-b:a', '128k', f]);

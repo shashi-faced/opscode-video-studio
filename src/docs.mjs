@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { stylesSection, formatsSection, resolveFormat } from './formats-guide.mjs';
+import { FORMAT_TEMPLATES, DATA_TEMPLATES } from './schema/spec.mjs';
 // Human/LLM-readable docs generated from the spec, so docs never drift from the validator.
 // templatesDoc(type) returns only what that kind of video needs, which keeps it short for small models.
 import { DESIGN } from './schema/spec.mjs';
@@ -96,14 +98,18 @@ export function resolveType(type) {
  * Storyboard reference. With a video type, only that type's recipe, templates and example.
  * @param type optional video type (or alias)
  */
-export function templatesDoc(type, platform, look) {
+export function templatesDoc(type, platform, look, format) {
   const is3d = /^(3d|3-d|three[ -]?d|cgi|pixar)/i.test(String(look || '').trim());
   const t = resolveType(type);
   const pl = resolvePlatform(platform);
   const recipe = t ? TYPE_RECIPES[t] : null;
   const isStick = /^(stick|line[ -]?art|hand[ -]?drawn|doodle)/i.test(String(look || '').trim());
   // Stickman explainers tell the idea with characters too, so story and dialogue scenes are always offered.
-  const names = [...new Set([...(recipe ? recipe.templates : Object.keys(TEMPLATES)), ...(isStick ? ['story', 'dialogue'] : [])])];
+  const fmt = resolveFormat(format);
+  // Format templates (plan 18) fit any type: offered for reels and explainers, or when a format is asked for.
+  const fmtTemplates = fmt ? { countdown: ['rank'], facts: ['fact'], myth: ['myth'], quiz: ['quiz'], poll: ['poll'], chat: ['chat'], data: ['chart', 'stat'], documentary: ['map', 'timeline', 'chart'], news: ['news', 'map', 'chart'] }[fmt]
+    : [...(!recipe || ['reel', 'explainer', 'ad'].includes(t) ? FORMAT_TEMPLATES : []), ...(!recipe || ['explainer', 'announcement'].includes(t) ? DATA_TEMPLATES : [])];
+  const names = [...new Set([...(recipe ? recipe.templates : Object.keys(TEMPLATES)), ...(isStick ? ['story', 'dialogue'] : []), ...fmtTemplates, ...(fmt ? ['title', 'cta'] : [])])].filter((n) => TEMPLATES[n]);
   const usesCharacters = names.some(n => n === 'story' || n === 'dialogue');
   const out = [];
   out.push('# Video Studio storyboard reference');
@@ -161,6 +167,8 @@ export function templatesDoc(type, platform, look) {
       out.push('  - Check a new design with video_character action "sheet" (8 views in one picture), then "save" it to the library; any later storyboard can use it with "design": "library:<id>". video_character action "list" shows saved characters.');
     }
   }
+  out.push(stylesSection());
+  out.push(formatsSection(format));
   out.push('\n## Top-level fields');
   for (const [k, f] of Object.entries(TOP_FIELDS)) {
     if (k === 'cast' && !usesCharacters) continue;

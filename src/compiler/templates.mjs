@@ -8,6 +8,8 @@ import { stickSvg, STICK_CSS, baseMood } from './stick.mjs';
 import { sceneBackdrop, stickOptions, styleTheme } from '../art/styles.mjs';
 import { propsHtml, PROP_CSS } from '../art/props.mjs';
 import { backgroundHtml, BACKGROUND_CSS } from './backgrounds.mjs';
+import { FORMAT_HTML, FORMAT_CSS, KINETIC_TEMPLATES, kineticScene } from './formats.mjs';
+import { DATA_HTML, DATA_CSS } from './data.mjs';
 
 const fit = (tag, cls, html, max, lines, lh = 1.06, d = 0) =>
   `<${tag} class="fit ${cls}" data-max="${max}" data-lines="${lines}" data-lh="${lh}" style="--d:${d}s">${html}</${tag}>`;
@@ -122,7 +124,9 @@ function storyScene(sc, ctx) {
   }
 
   // Stickman look (plan 14): people are drawn as stickmen, animals and objects flat with an ink outline.
-  const stick = !is3d && ctx.isStick?.(sc) ? stickOptions(ctx.art) : null;
+  const stick = !is3d && ctx.isStick?.(sc) ? stickOptions(ctx.art, ctx.vary) : null;
+  // Flat vector style: everyone is painted flat with an ink outline, like the animals beside stickmen.
+  const flatInk = !is3d && !stick && ctx.style?.flat ? ctx.theme.ink : null;
   const charHtml = is3d ? '' : chars.map((c, k) => {
     const firstLine = lines.find(l => String(l.who).toLowerCase() === c.who.id);
     const mood = c.mood || firstLine?.mood || 'happy';
@@ -130,7 +134,7 @@ function storyScene(sc, ctx) {
     const from = c.x < 50 ? 'calc(var(--u)*-115)' : 'calc(var(--u)*115)';
     const svg = stick && STICK_KINDS.has(c.who.kind)
       ? stickSvg(c.who.kind, { ...stick, mood, pose: c.pose || 'idle', color: c.who.color, id: c.who.id })
-      : characterSvg(c.who.kind, { mood, pose: c.pose || 'idle', color: c.who.color, hair: c.who.hair, skin: c.who.skin, flat: stick ? { ink: stick.ink } : null }, `c${ctx.index}_${k}`);
+      : characterSvg(c.who.kind, { mood, pose: c.pose || 'idle', color: c.who.color, hair: c.who.hair, skin: c.who.skin, flat: stick ? { ink: stick.ink } : flatInk ? { ink: flatInk } : null }, `c${ctx.index}_${k}`);
     return `<div class="chwrap ${enter}" data-who="${esc(c.who.id)}" style="left:${c.x}%;--s:${c.s};--d:${(0.2 + k * 0.3).toFixed(2)}s;--from:${from};--blink:-${(k * 1.37).toFixed(2)}s"><div class="chflip${c.facing === 'left' ? ' flip' : ''}">${svg}</div></div>`;
   }).join('');
 
@@ -149,7 +153,7 @@ function storyScene(sc, ctx) {
   // With a title, the story text flows right under it instead of sitting at a fixed height.
   const title = sc.headline
     ? `<div class="storytitle">${sc.kicker ? fit('div', 'kicker a-up', esc(sc.kicker), sz('kicker', ctx), 1, 1.2, 0.1) : ''}${fit('h1', 'headline a-pop', markup(sc.headline), sz('stitle', ctx), 2, 1.04, 0.25)}${text}</div>` : '';
-  const t = stick ? styleTheme(ctx.art) : null;
+  const t = stick ? styleTheme(ctx.art, ctx.vary) : null;
   const props = is3d || !sc.props?.length ? '' : propsHtml(sc.props, { ink: t ? t.ink : '#2b2b33', accent: t ? t.accent : 'var(--accent)', accent2: t ? t.accent2 : 'var(--accent2)', ground: ctx.layout.ground, posX: POS_X[ctx.fi] });
   const backdrop = is3d ? '' : stick ? sceneBackdrop(ctx.art, sc) : backgroundHtml(sc.background || 'meadow', sc.time || 'day');
   return `<div class="in t-story no-scale${is3d ? ' w3d' : ''}${stick ? ' st-story' : ''}">${backdrop}${props}${charHtml}${bubbles}${title}${sc.headline ? '' : text}</div>`;
@@ -400,4 +404,16 @@ ${BACKGROUND_CSS}
 @keyframes sc-fade{from{opacity:0}}
 @keyframes sc-slide{from{opacity:0;transform:translateX(calc(var(--u)*8))}}
 @keyframes sc-zoom{from{opacity:0;transform:scale(1.06)}}
-`;
+${FORMAT_CSS}
+${DATA_CSS}`;
+
+// Plan 18: format templates, and kinetic typography taking over text scenes in the kinetic style.
+Object.assign(TEMPLATE_HTML, FORMAT_HTML, DATA_HTML);
+for (const name of Object.keys(TEMPLATE_HTML)) {
+  const draw = TEMPLATE_HTML[name];
+  TEMPLATE_HTML[name] = (sc, ctx) => {
+    const withCharacters = (name === 'story' || name === 'dialogue') && ((sc.characters || []).length || (sc.lines || []).length);
+    if (ctx.style?.kinetic && KINETIC_TEMPLATES.has(name) && !withCharacters) return kineticScene(sc, ctx);
+    return draw(sc, ctx);
+  };
+}

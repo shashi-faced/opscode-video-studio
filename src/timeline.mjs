@@ -6,7 +6,23 @@ export { alignWords };
 // Scene timing + caption chunks. Everything downstream (compiler, music, mixer)
 // reads this one object so voice, picture and music always agree.
 
-export const TEMPLATE_MIN = { title: 3.5, feature: 5, bullets: 4.5, split: 4.5, stat: 4, quote: 4.5, cta: 5, story: 3.5, dialogue: 3, steps: 5 };
+/** Seconds a scene needs after its voice ends: a quiz counts down, a poll shows its result. */
+export function afterVoice(sc) {
+  if (sc.template === 'quiz') return Math.min(10, Math.max(2, +sc.countdown || 3)) + 1.6;
+  if (sc.template === 'poll') return 1.6;
+  if (sc.template === 'chart') return sc.kind === 'race' ? 1.2 : 1.0; // let the numbers finish counting
+  if (sc.template === 'map' || sc.template === 'timeline') return 0.8;
+  return 0;
+}
+/** Shortest a scene can be, from what it shows. */
+export function minDuration(sc) {
+  if (sc.template === 'chat') return Math.max(TEMPLATE_MIN.chat, 1.2 + (sc.messages?.length || 1) * 1.1);
+  if (sc.template === 'chart' && sc.kind === 'race') return Math.max(6, 2 + (sc.steps || sc.years || []).length * 0.9);
+  if (sc.template === 'timeline') return Math.max(TEMPLATE_MIN.timeline, 1.6 + (sc.events?.length || 1) * 1.1);
+  return (TEMPLATE_MIN[sc.template] ?? 4) + (sc.template === 'quiz' && !sc.narration ? afterVoice(sc) : 0);
+}
+
+export const TEMPLATE_MIN = { title: 3.5, feature: 5, bullets: 4.5, split: 4.5, stat: 4, quote: 4.5, cta: 5, story: 3.5, dialogue: 3, steps: 5, rank: 3.5, fact: 3.5, myth: 5, quiz: 5, poll: 5, chat: 4, chart: 5, timeline: 5, map: 4.5, news: 4.5 };
 // Pause between spoken parts of one scene (narration, then each dialogue line).
 export const PART_GAP = 0.35;
 export const LEAD_IN = 0.4;
@@ -107,7 +123,7 @@ export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], n
     const partSecs = partLengths[i] && partLengths[i].length === parts.length ? partLengths[i]
       : measured != null && parts.length === 1 ? [measured] : estimates;
     const speech = measured ?? (parts.length ? partSecs.reduce((a, b) => a + b, 0) + PART_GAP * (parts.length - 1) : 0);
-    const auto = Math.max(TEMPLATE_MIN[sc.template] ?? 4, speech ? LEAD_IN + speech + TAIL : 0);
+    const auto = Math.max(minDuration(sc), speech ? LEAD_IN + speech + TAIL + afterVoice(sc) : 0);
     const duration = sc.duration ? Math.max(sc.duration, speech ? LEAD_IN + speech + 0.2 : 0) : auto;
     const start = +t.toFixed(3);
     const end = +(t + duration).toFixed(3);
@@ -140,7 +156,14 @@ export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], n
       });
       captions.sort((a, b) => a.start - b.start);
     }
-    scenes.push({ index: i, template: sc.template, start, end, duration: +duration.toFixed(3), voiceStart, voiceLength: measured ?? null, estimated: measured == null && parts.length > 0, captions, parts: timed });
+    // The narration's words with their times (plan 18): kinetic text and reveals follow the voice.
+    let words;
+    if (narr && narrPart) {
+      const toks = captionTokens(sc.narration);
+      const span = narrPart.end - narrPart.start;
+      words = alignWords(toks, narrationWords[i] || null, span).map(([a, b], k) => [toks[k].html, +(narrPart.start + a).toFixed(3), +(narrPart.start + b).toFixed(3)]);
+    }
+    scenes.push({ index: i, template: sc.template, start, end, duration: +duration.toFixed(3), voiceStart, voiceLength: measured ?? null, estimated: measured == null && parts.length > 0, captions, parts: timed, ...(words ? { words } : {}) });
     t += duration;
   });
   return { duration: +t.toFixed(3), fps: storyboard.fps || 30, scenes };

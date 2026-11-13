@@ -7,7 +7,9 @@ import { createRequire } from 'node:module';
 import { STAGE } from '../schema/spec.mjs';
 import { PLATFORMS, safePixels } from '../schema/platforms.mjs';
 import { resolveTheme, themeCss, fontFiles } from './themes.mjs';
-import { styleTheme, styleCss } from '../art/styles.mjs';
+import { styleTheme, styleCss, STYLES, styleBase } from '../art/styles.mjs';
+import { variety, entranceCss, flatDecor } from '../art/variety.mjs';
+import { HAND_SVG } from './draw.mjs';
 import { TEMPLATE_HTML, TEMPLATE_CSS } from './templates.mjs';
 import { imageSize } from '../util/imagesize.mjs';
 import { stageLayout } from './backgrounds.mjs';
@@ -23,9 +25,15 @@ const FORMAT_INDEX = { '16:9': 0, '9:16': 1, '1:1': 2, '4:5': 2 };
 export function compile(storyboard, timeline, { baseDir, buildDir, progress = true }) {
   fs.mkdirSync(path.join(buildDir, 'assets'), { recursive: true });
   const stage = STAGE[storyboard.format];
-  // Stickman look: the art style sets colours and fonts for the whole video.
+  // Art style (plan 14/18): sets colours and fonts for the whole video. Stickman styles need the
+  // stickman look; the others (whiteboard is stickman too; kinetic, flat-vector) work with any 2D video.
   const stickLook = storyboard.look === 'stickman';
-  const theme = stickLook ? { ...styleTheme(storyboard.art), ...(storyboard.accent ? { accent: storyboard.accent } : {}) } : resolveTheme(storyboard.theme, storyboard.accent);
+  const styleId = storyboard.art?.style && STYLES[storyboard.art.style] ? storyboard.art.style : null;
+  const styled = !!styleId && (stickLook || styleBase(styleId) !== 'stickman');
+  const style = styled ? STYLES[styleId] : null;
+  // Per-video variety inside the style: accents, entrances, transitions, backdrop.
+  const vary = styled ? variety(storyboard, styleId) : null;
+  const theme = styled ? { ...styleTheme(storyboard.art, vary), ...(storyboard.accent ? { accent: storyboard.accent } : {}) } : resolveTheme(storyboard.theme, storyboard.accent);
 
   // Copy each referenced file once; name by content hash so rebuilds are stable.
   const assetCache = new Map();
@@ -66,16 +74,20 @@ export function compile(storyboard, timeline, { baseDir, buildDir, progress = tr
   if (storyboard.cinematic && storyboard.format === '16:9') { safe.top = Math.max(safe.top, 150); safe.bottom = Math.max(safe.bottom, 150); }
   const cap = storyboard.captions || null;
   const cine = !!storyboard.cinematic && storyboard.format === '16:9';
-  const stageCls = [stage.cls, stickLook ? `look-stick st-${storyboard.art?.style || 'line-art'}` : '', cap ? `cap-${cap.style} cap-${cap.position}` : '', (plat && plat.progress === false) || !progress || cine ? 'no-prog' : '', cine ? 'cine' : ''].filter(Boolean).join(' ');
+  const stageCls = [stage.cls, stickLook ? `look-stick st-${storyboard.art?.style || 'line-art'}` : styled ? `look-art st-${styleId}` : '', vary ? `v-ent-${vary.entrance}` : '', style?.draw ? `draw-on draw-${style.draw}` : '', cap ? `cap-${cap.style} cap-${cap.position}` : '', (plat && plat.progress === false) || !progress || cine ? 'no-prog' : '', cine ? 'cine' : '', /[\u0900-\u097F]/.test(JSON.stringify(storyboard.scenes)) ? 'lang-deva' : ''].filter(Boolean).join(' ');
   const safeVars = `--st:${safe.top}px;--sb:${safe.bottom}px;--sl:${safe.left}px;--sr:${safe.right}px;--srf:${safe.rightFrom}px`;
   // 3D look (plan 12): story and dialogue scenes are drawn by the three.js world module.
   const world = {};
   const is3d = (sc) => (sc.template === 'story' || sc.template === 'dialogue') && (sc.look || storyboard.look) === '3d';
   const isStick = (sc) => (sc.look || storyboard.look) === 'stickman';
   const scenesHtml = storyboard.scenes.map((sc, i) => {
-    const ctx = { index: i, fi: FORMAT_INDEX[storyboard.format], asset, brandLogo, format: storyboard.format, cast, layout, is3d, isStick, art: storyboard.art || { style: 'line-art' }, world };
+    const ctx = { index: i, fi: FORMAT_INDEX[storyboard.format], asset, brandLogo, format: storyboard.format, cast, layout, is3d, isStick, art: storyboard.art || { style: 'line-art' }, world,
+      // Plan 18: the scene's timing (for reveals timed to the voice), the style and its variety choices.
+      tl: timeline.scenes[i], dur: timeline.scenes[i]?.duration || 4, style, styleId, vary, theme };
     const inner = TEMPLATE_HTML[sc.template](sc, ctx);
-    return `<section class="scene tr-${sc.transition || 'fade'}" data-i="${i}">${inner}</section>`;
+    const tr = sc.transition || (vary ? vary.transitions[i % vary.transitions.length] : 'fade');
+    const decor = style?.flat ? flatDecor(vary, i, theme) : '';
+    return `<section class="scene tr-${tr}" data-i="${i}" style="--sd:${(timeline.scenes[i]?.duration || 4).toFixed(2)}s">${decor}${inner}</section>`;
   }).join('\n');
 
   const stars = theme.stars ? Array.from({ length: 46 }, (_, k) => {
@@ -160,11 +172,11 @@ ${worldHead}<style>${fonts}
 ${themeCss(theme)}
 html,body{margin:0;background:#000}
 #stage{width:${stage.width}px;height:${stage.height}px;--sh:${stage.height}px;--ground:${layout.ground}px;--chh:${layout.chh}px;${safeVars}}
-${TEMPLATE_CSS}${stickLook || storyboard.scenes.some(isStick) ? styleCss(storyboard.art || { style: 'line-art' }) : ''}</style></head>
-<body><div id="stage" class="${stageCls}" data-platform="${storyboard.platform || ''}"><div class="amb">${stars}<div class="blob"></div><div class="blob b2"></div></div>${has3d ? worldBody : ''}
+${TEMPLATE_CSS}${styled || storyboard.scenes.some(isStick) ? styleCss(styled ? storyboard.art : (storyboard.art || { style: 'line-art' }), vary) : ''}${entranceCss(vary)}</style></head>
+<body><div id="stage" class="${stageCls}" data-platform="${storyboard.platform || ''}"><div class="amb">${stars}<div class="blob"></div><div class="blob b2"></div></div>${style?.draw ? '<div class="wb-board"></div>' : ''}${has3d ? worldBody : ''}
 ${brand}${prog}
 ${scenesHtml}
-<div class="cap"><span></span></div></div>
+<div class="cap"><span></span></div>${style?.draw ? `<div class="wb-hand">${HAND_SVG[style.draw]}</div>` : ''}</div>
 <script type="application/json" id="timeline">${JSON.stringify(timeline).replace(/</g, '\\u003c')}</script>
 <script>${fs.readFileSync(path.join(HERE, 'runtime.js'), 'utf8')}</script></body></html>`;
 

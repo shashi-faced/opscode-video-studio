@@ -59,6 +59,13 @@ export function propsHtml(props, ctx) {
   }).join('');
 }
 
+/** One icon as inline SVG (Lucide, ISC), for the format templates. Null when the name is unknown. */
+export function iconSvg(name, { stroke = 'currentColor', width = 1.9 } = {}) {
+  const icon = resolveIcon(name);
+  if (!icon) return null;
+  return `<svg viewBox="0 0 24 24" aria-label="${icon}"><g fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round">${DATA.icons[icon]}</g></svg>`;
+}
+
 export const PROP_CSS = `
 .st-prop{position:absolute;aspect-ratio:1;transform:translateX(-50%);z-index:3}
 .st-prop svg{width:100%;height:100%;display:block;overflow:visible}

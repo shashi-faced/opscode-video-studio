@@ -27,7 +27,8 @@ export function updateSecrets(fn) {
   return s;
 }
 
-export const elevenKey = () => String(process.env.OPSCODE_ELEVENLABS_KEY || loadSecrets().elevenlabs?.apiKey || '').trim();
+// OPSCODE_IGNORE_SAVED_VOICE_KEY (set by the test runner) keeps tests away from the user's own key and credits.
+export const elevenKey = () => String(process.env.OPSCODE_ELEVENLABS_KEY || (process.env.OPSCODE_IGNORE_SAVED_VOICE_KEY ? '' : loadSecrets().elevenlabs?.apiKey) || '').trim();
 
 /** Which voice service to use: 'elevenlabs' when a key is saved and the user did not switch back, else 'edge'. */
 export function voiceProvider() {

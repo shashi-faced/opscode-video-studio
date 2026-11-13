@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { stickSvg, STICK_MOODS, baseMood } from '../src/compiler/stick.mjs';
 import { characterSvg } from '../src/compiler/characters.mjs';
-import { STYLES, ART_STYLES, styleCss, styleTheme, stickOptions } from '../src/art/styles.mjs';
+import { STYLES, ART_STYLES, styleCss, styleTheme, stickOptions, styleBase } from '../src/art/styles.mjs';
 import { resolveIcon, propsHtml, ICONS } from '../src/art/props.mjs';
 import { validate } from '../src/schema/validate.mjs';
 import { CHARACTER_MOODS } from '../src/schema/spec.mjs';
@@ -49,14 +49,14 @@ test('cartoon and 3D characters show the nearest of their six faces for stickman
   assert.match(flat, /stroke="#111"/);
 });
 
-test('ten styles, each with theme, CSS and stickman options', () => {
-  assert.equal(ART_STYLES.length, 10);
+test('every style has a theme, CSS and stickman options (10 stickman styles from plan 14, more from plan 18)', () => {
+  assert.ok(ART_STYLES.length >= 14);
   for (const id of ART_STYLES) {
     const css = styleCss({ style: id });
-    assert.ok(css.includes(`#stage.look-stick.st-${id}`), id);
+    assert.ok(css.includes(`#stage.st-${id}`), id);
     const t = styleTheme({ style: id });
     for (const k of ['bg', 'ink', 'accent', 'accent2', 'display']) assert.ok(t[k], `${id}.${k}`);
-    assert.ok(['hollow', 'white', 'glow', 'beanie', 'hood'].includes(stickOptions({ style: id }).head));
+    if (styleBase(id) === 'stickman') assert.ok(['hollow', 'white', 'glow', 'beanie', 'hood'].includes(stickOptions({ style: id }).head), id);
   }
   assert.equal(styleTheme({ style: 'classic-bw', theme: 'dark' }).bg, STYLES['classic-bw'].dark.bg);
   // Dark scene styles draw faces in dark ink so a white head shows a face.

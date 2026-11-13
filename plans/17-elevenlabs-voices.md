@@ -1,6 +1,6 @@
 # Plan 17: ElevenLabs voices (a different, expressive voice for every character)
 
-Status (2026-11-12): **built and tested against a fake ElevenLabs API; not released, and not yet run with a real key.**
+Status (2026-11-12): **released as v0.16.0** (commit `150432f`, tag pushed, download checked) and in the rebuilt app. Tested against a fake ElevenLabs API; **not yet run with a real key.**
 
 ## 1. Goal
 
@@ -47,4 +47,4 @@ With the user's ElevenLabs key saved, every video's narrator and every character
 - **Fallback during a video** (ElevenLabs failing halfway) is written but only its start-of-video form is tested, because the built-in voices need the real internet.
 - Voice matching depends on the voices in the user's library. A library with no child or old voices gives adults for those parts.
 - Not built: creating voices from a description (ElevenLabs voice design), voice cloning, an estimate of the cost before rendering.
-- Needs a release (v0.16.0) and an app rebuild before the user can use it.
+- Released; the user still has to update Video Studio in the Store and save a key in Settings → Voices.

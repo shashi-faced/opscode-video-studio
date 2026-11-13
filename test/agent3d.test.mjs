@@ -9,7 +9,7 @@ const sb = (design) => ({ look: '3d', voice: { provider: 'none' }, cast: [{ id: 
 
 test('the 3D guide is only sent when asked for, and stays under 3 KB', () => {
   const d3 = templatesDoc('story', null, '3d'), d2 = templatesDoc('story');
-  const part = d3.slice(d3.indexOf('## 3D look'), d3.indexOf('## Top-level'));
+  const at = d3.indexOf('## 3D look'), part = d3.slice(at, d3.indexOf('\n## ', at + 5));
   assert.ok(part.length > 1000 && part.length <= 3000, `3D guide is ${part.length} bytes`);
   assert.match(d3, /preset:<id>/);
   assert.doesNotMatch(d2, /preset:<id>/);

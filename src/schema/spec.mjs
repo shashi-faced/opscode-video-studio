@@ -124,6 +124,11 @@ export const COMMON_FIELDS = {
   transition: enm(TRANSITIONS, { doc: 'how the scene enters' }),
 };
 
+/** Format templates (plan 18): they fit any video type. */
+export const FORMAT_TEMPLATES = ['rank', 'fact', 'myth', 'quiz', 'poll', 'chat'];
+/** Data and documentary templates (plan 18 M4): they fit any video type too. */
+export const DATA_TEMPLATES = ['chart', 'timeline', 'map', 'news'];
+
 export const TEMPLATES = {
   title: {
     use: 'Opening scene: big headline, optional image or mascot.',
@@ -240,6 +245,127 @@ export const TEMPLATES = {
       logo: { type: 'path', doc: 'defaults to brand.logo' },
     },
     example: { template: 'cta', headline: 'Opscode Agent', subline: 'Made in India. For builders everywhere.', button: 'Download for Linux', badges: ['Multi-agent', 'Browser debug'], narration: 'Opscode Agent. Download it today.' },
+  },
+  // ───────── plan 18: short-form formats ─────────
+  rank: {
+    use: 'One entry of a countdown / Top-N list ("#3 …"). Make one rank scene per entry, counting down to #1.',
+    fields: {
+      number: num(1, 100, { required: true, doc: 'the place in the list, e.g. 5 … 1' }),
+      title: str(60, { required: true, soft: 36, doc: 'the entry, ≤ 6 words; *stars* highlight' }),
+      text: str(140, { doc: 'one short line about it' }),
+      icon: str(30, { doc: 'optional icon word: money, phone, brain, rocket, heart, clock…' }),
+    },
+    example: { template: 'rank', number: 3, title: 'Skipping *breakfast*', text: 'Your brain runs on glucose in the morning.', icon: 'brain', narration: 'Number three: skipping breakfast. Your brain runs on glucose in the morning.' },
+  },
+  fact: {
+    use: 'One surprising fact, big on screen. Several fact scenes in a row make a rapid-fire facts video.',
+    fields: {
+      fact: str(160, { required: true, soft: 110, doc: 'the fact in one sentence; *stars* highlight the key words' }),
+      number: num(1, 100, { doc: 'shows "Fact #n"' }),
+      kicker: str(40, { doc: 'small label instead of "Fact #n"' }),
+      icon: str(30, { doc: 'optional icon word' }),
+      source: str(60, { doc: 'where the fact comes from, small' }),
+    },
+    example: { template: 'fact', number: 1, fact: 'Honey *never spoils*: jars 3,000 years old were still edible.', icon: 'jar', narration: 'Honey never spoils. Archaeologists found three thousand year old honey that was still edible.' },
+  },
+  myth: {
+    use: 'Myth vs truth: the myth is shown, then crossed out, then the truth appears. Say the myth in the first sentence of the narration and the truth in the second; the truth appears when the second sentence starts.',
+    fields: {
+      myth: str(120, { required: true, soft: 80, doc: 'what people wrongly believe' }),
+      truth: str(160, { required: true, soft: 110, doc: 'what is actually true' }),
+      kicker: str(40, { doc: 'optional label above, e.g. "Myth #2"' }),
+    },
+    example: { template: 'myth', myth: 'Cracking your knuckles causes arthritis.', truth: 'Studies found *no link*: the sound is just gas bubbles.', narration: 'Cracking your knuckles causes arthritis? Studies found no link at all; the pop is just gas bubbles.' },
+  },
+  quiz: {
+    use: 'A quiz question with 2-4 options, a ticking countdown, then the right answer lights up. The narration asks the question; the countdown runs after it.',
+    fields: {
+      question: str(120, { required: true, soft: 80 }),
+      options: list(str(40), 4, { required: true, min: 2, doc: '2-4 short answers' }),
+      answer: num(1, 4, { required: true, doc: 'number of the right option, 1-4' }),
+      countdown: num(2, 10, { doc: 'seconds to think (default 3)' }),
+      explain: str(120, { doc: 'one line shown after the answer' }),
+      kicker: str(40, { doc: 'label above, default "Quiz time"' }),
+    },
+    example: { template: 'quiz', question: 'Which planet is the *hottest*?', options: ['Mercury', 'Venus', 'Mars'], answer: 2, countdown: 3, explain: 'Venus: its thick clouds trap the heat.', narration: 'Which planet is the hottest? Mercury, Venus or Mars?' },
+  },
+  poll: {
+    use: 'Would you rather / this or that: two choices side by side, then (optional) the result bars.',
+    fields: {
+      question: str(80, { doc: 'default "Would you rather…"' }),
+      optionA: str(40, { required: true }),
+      optionB: str(40, { required: true }),
+      iconA: str(30), iconB: str(30),
+      resultA: num(0, 100, { doc: 'percent who chose A; B gets the rest. Leave out for no result' }),
+    },
+    example: { template: 'poll', question: 'Would you rather…', optionA: 'Never use social media again', optionB: 'Never watch movies again', iconA: 'phone', iconB: 'tv', resultA: 38, narration: 'Would you rather never use social media again, or never watch a movie again?' },
+  },
+  chat: {
+    use: 'A chat story: a message thread appears bubble by bubble, with a typing indicator. "me" messages are on the right. Generic chat look (no real app).',
+    fields: {
+      contact: str(30, { doc: 'name at the top of the chat' }),
+      messages: list(obj({ from: str(20, { doc: '"me" or the other person' }), text: str(120, { required: true }) }), 14, { required: true, min: 1, doc: '1-14 short messages in order' }),
+    },
+    example: { template: 'chat', contact: 'Mom', messages: [{ from: 'Mom', text: 'Where are you?? It is 11 pm' }, { from: 'me', text: 'At Rahul\'s, studying 📚' }, { from: 'Mom', text: 'Rahul is here with me.' }], narration: 'Mom texted at eleven. I said I was studying at Rahul\'s. Big mistake.' },
+  },
+  // ───────── plan 18 M4: data and documentary ─────────
+  chart: {
+    use: 'A chart whose numbers count up as the voice talks: "bar" (compare things), "line" (change over time), "pie" (shares of a whole) or "race" (a bar-chart race over years). A bar or pie item appears when the narration names it.',
+    fields: {
+      kind: enm(['bar', 'line', 'pie', 'race'], { required: true, doc: 'bar, line, pie or race' }),
+      headline: str(70, { soft: 46, doc: 'what the chart shows; *stars* highlight' }),
+      kicker: str(40, { doc: 'small label above' }),
+      data: list(obj({
+        label: str(30, { required: true, doc: 'bar name, x label (year) or slice name' }),
+        value: num(-1e15, 1e15, { doc: 'bar, line, pie: the number' }),
+        values: list(num(-1e15, 1e15), 40, { doc: 'race only: one number per step' }),
+        color: { type: 'color' },
+      }), 16, { required: true, min: 2, doc: 'bar ≤10, line ≤24 points, pie ≤8 slices, race ≤16 series' }),
+      steps: list(str(12), 40, { doc: 'race only: the step names, e.g. years ["2000","2005","2010"]' }),
+      prefix: str(6, { doc: 'before numbers, e.g. "₹" or "$"' }),
+      suffix: str(12, { doc: 'after numbers, e.g. "%" or " cr"' }),
+      highlight: str(30, { doc: 'bar or pie: the label to colour in the accent' }),
+      top: num(2, 10, { doc: 'race: how many bars show (default 8)' }),
+      source: str(80, { doc: 'where the numbers come from, small' }),
+    },
+    example: { template: 'chart', kind: 'bar', headline: 'Who uses *UPI* the most', data: [{ label: 'PhonePe', value: 48 }, { label: 'Google Pay', value: 37 }, { label: 'Paytm', value: 7 }, { label: 'Others', value: 8 }], suffix: '%', highlight: 'PhonePe', source: 'NPCI, 2024', narration: 'PhonePe leads with almost half of all UPI payments, then Google Pay. Paytm is far behind.' },
+  },
+  timeline: {
+    use: 'A timeline: 2-7 events with a year or date; each lights up when the narration says its year (or in order). Up to 4 events read best in 9:16.',
+    fields: {
+      headline: str(70, { soft: 46 }),
+      kicker: str(40),
+      events: list(obj({ year: str(14, { required: true, doc: 'year or date, e.g. "1947" or "Aug 2023"' }), title: str(50, { required: true, soft: 32 }), text: str(90, { doc: 'one short line' }), icon: str(30) }), 7, { required: true, min: 2, doc: '2-7 events in order' }),
+      source: str(80),
+    },
+    example: { template: 'timeline', headline: 'India in *space*', events: [{ year: '1975', title: 'Aryabhata', text: 'First satellite' }, { year: '2008', title: 'Chandrayaan-1', text: 'Found water on the Moon' }, { year: '2014', title: 'Mangalyaan', text: 'Mars on the first try' }, { year: '2023', title: 'Chandrayaan-3', text: 'Landed near the south pole' }], narration: 'In 1975 India launched Aryabhata. In 2008 Chandrayaan-1 found water on the Moon. 2014 brought Mangalyaan, and in 2023 Chandrayaan-3 landed near the south pole.' },
+  },
+  map: {
+    use: 'A map: countries light up, pins drop on cities, and a route is drawn from place to place, each when the narration names it. The view zooms to what it shows. Places are country names, big cities, or { lat, lon }.',
+    fields: {
+      headline: str(70, { soft: 46 }),
+      kicker: str(40),
+      subline: str(100),
+      region: str(40, { doc: 'what to show when nothing else sets it: world, asia, south asia, europe, africa, middle east, north america, south america, oceania, or a country' }),
+      highlight: list(str(40), 12, { doc: 'countries to colour, e.g. ["India","Japan"]' }),
+      pins: list(obj({ place: str(40, { doc: 'city or country name' }), lat: num(-90, 90), lon: num(-180, 180), label: str(30, { doc: 'text by the pin (default: the place name)' }) }), 10, { doc: 'pins on places' }),
+      route: list(str(40), 8, { doc: 'places in order; a line is drawn between them' }),
+      labels: { type: 'bool', doc: 'false hides country names' },
+      source: str(80),
+    },
+    example: { template: 'map', kicker: 'The spice route', headline: 'From *Kochi* to *Venice*', route: ['Kochi', 'Muscat', 'Cairo', 'Venice'], highlight: ['India', 'Italy'], narration: 'Pepper left Kochi, crossed to Muscat, travelled through Cairo and ended up in the markets of Venice.' },
+  },
+  news: {
+    use: 'A news-style update: a "breaking news" tag, the headline in a lower-third bar, a line of detail and a scrolling ticker. Generic look, no real channel. Optional background image.',
+    fields: {
+      headline: str(80, { required: true, soft: 56 }),
+      kicker: str(30, { doc: 'the tag, default "Breaking news"' }),
+      subline: str(120, { doc: 'one line of detail' }),
+      place: str(30), date: str(30),
+      ticker: list(str(80), 6, { doc: 'short lines that scroll along the bottom' }),
+      image: { type: 'path', doc: 'background picture (optional)' },
+    },
+    example: { template: 'news', kicker: 'Breaking news', headline: 'Chandrayaan-3 lands on the *Moon*', subline: 'India is the first country to land near the lunar south pole.', place: 'Bengaluru', date: '23 Aug 2023', ticker: ['Rover Pragyan rolls out', 'ISRO confirms all systems normal', 'Celebrations across India'], narration: 'Breaking news: Chandrayaan-3 has landed on the Moon, near the south pole.' },
   },
 };
 COMMON_FIELDS.template.values = Object.keys(TEMPLATES);

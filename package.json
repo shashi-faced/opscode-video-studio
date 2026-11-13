@@ -1,6 +1,6 @@
 {
   "name": "@opscode/video-studio",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Opscode Video Studio agent: storyboard JSON to animated MP4 with voiceover, music and captions.",
   "type": "module",
   "bin": {
@@ -21,7 +21,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs",
+    "test": "node --import ./test/setup.mjs --test test/*.test.mjs",
     "example:reel": "node bin/opscode-video.mjs render examples/reel.json",
     "example:ad": "node bin/opscode-video.mjs render examples/ad.json"
   },
