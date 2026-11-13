@@ -147,7 +147,49 @@ export function kineticScene(sc, ctx) {
   return `<div class="in t-kinetic no-scale"><div class="kt">${label}${beats}<i class="kt-bar"></i></div></div>`;
 }
 
-export const FORMAT_HTML = { rank, fact, myth, quiz, poll, chat };
+// ───────────────────────── plan 18 M6: post story, before / after ─────────────────────────
+
+/**
+ * A forum-style post read out by the narrator. Generic design (no real site's name, logo or colours),
+ * over our own looping background (never game footage). Votes and comments count up.
+ */
+function post(sc, ctx) {
+  const user = String(sc.user || 'anonymous').replace(/^@/, '');
+  const votes = Math.max(0, Math.round(+sc.votes || 0)), comments = Math.max(0, Math.round(+sc.comments || 0));
+  const count = (n, t0) => `<span class="cu" data-cu="${t0}:0|${r2(t0 + 1.4)}:${n}" data-dec="0" data-loc="en-US"><b>${n.toLocaleString('en-US')}</b></span>`;
+  const meta = [sc.community, sc.time].filter(Boolean).map((x) => esc(String(x))).join(' · ');
+  return `<div class="in t-post fmt no-scale"><div class="ps-bg"><i></i><i></i><i></i></div>
+<div class="ps-card a-rise" style="--d:.1s">
+<div class="ps-head"><span class="ps-av">${esc(user.charAt(0).toUpperCase() || '•')}</span><div><b>${esc(user)}</b>${meta ? `<small>${meta}</small>` : ''}</div>${sc.tag ? `<span class="ps-tag">${esc(sc.tag)}</span>` : ''}</div>
+${fit('h1', 'ps-title', markup(sc.title || sc.headline || ''), sz('head', ctx) * 0.72, 3, 1.12, 0.25)}
+${sc.body ? fit('p', 'ps-body a-up', markup(sc.body), sz('sub', ctx) * 1.05, ctx.fi === 1 ? 9 : 6, 1.35, 0.6) : ''}
+<div class="ps-foot a-up" style="--d:.9s"><span class="ps-vote">▲ ${count(votes, 0.9)}</span><span class="ps-com">💬 ${count(comments, 1.1)}</span><span class="ps-share">↗ Share</span></div>
+</div></div>`;
+}
+
+/** "After" first; then a wipe reveals "before"; it settles as a split showing both, labelled. */
+function beforeafter(sc, ctx) {
+  const side = (o) => (typeof o === 'string' ? { text: o } : o || {});
+  const B = side(sc.before), A = side(sc.after);
+  // The wipe starts when the narration says "before" (or a little before half-way).
+  const w = ctx.tl?.words || [];
+  const cue = w.find(([h]) => /^(<[^>]+>)*(before|पहले|earlier)/i.test(h));
+  const t1 = r2(clamp(cue ? cue[1] - ctx.tl.start - 0.1 : Math.min(voiceEnd(ctx, ctx.dur * 0.5) * 0.45, ctx.dur * 0.4), 0.9, Math.max(1, ctx.dur - 2.4)));
+  const panel = (o, k) => {
+    const img = o.image ? ctx.asset(o.image) : null;
+    const ic = !img && o.icon ? iconSvg(o.icon, { stroke: 'currentColor' }) : null;
+    const items = (o.items || []).slice(0, ctx.fi === 1 ? 3 : 4).map((it) => `<li><b>${k === 'before' ? '✕' : '✓'}</b>${fit('span', 'ba-item', markup(it), sz('opt', ctx) * 0.9, 2, 1.2)}</li>`).join('');
+    return `<div class="ba-panel ba-${k}"><div class="ba-box">
+<div class="ba-label">${esc(o.label || (k === 'before' ? 'Before' : 'After'))}</div>
+${img ? `<div class="ba-img"><img src="${img.src}" alt=""></div>` : ic ? `<div class="ba-ic">${ic}</div>` : ''}
+${o.text ? fit('p', 'fmt-text ba-text', markup(o.text), sz('opt', ctx) * 1.25, 3, 1.18) : ''}${items ? `<ul class="ba-items">${items}</ul>` : ''}</div></div>`;
+  };
+  return `<div class="in t-beforeafter fmt no-scale" style="--rv:${t1}s">
+${sc.headline ? fit('h1', 'headline a-up', markup(sc.headline), sz('head', ctx), 2, 1.06, 0.05) : ''}
+<div class="ba">${panel(A, 'after')}${panel(B, 'before')}<i class="ba-line"><b>⇆</b></i></div></div>`;
+}
+
+export const FORMAT_HTML = { rank, fact, myth, quiz, poll, chat, post, beforeafter };
 
 export const FORMAT_CSS = `
 .fmt{left:max(var(--sl,0px),calc(var(--u)*7));right:max(var(--sr,0px),calc(var(--u)*7));top:max(var(--st,0px),calc(var(--u)*7));bottom:max(var(--sb,0px),calc(var(--u)*7));align-content:center;justify-items:center;text-align:center}
@@ -243,4 +285,74 @@ export const FORMAT_CSS = `
 @keyframes ct-type-on{to{max-height:calc(var(--u)*6);opacity:1;margin:calc(var(--u)*.7) 0;padding:calc(var(--u)*1.4) calc(var(--u)*1.6)}}
 @keyframes ct-type-off{to{max-height:0;opacity:0;margin:0;padding:0 calc(var(--u)*1.6)}}
 @keyframes ct-dot{50%{transform:translateY(calc(var(--u)*-.6));opacity:.5}}
+/* plan 18 M6: post story */
+#stage .in.t-post{left:0;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:max(var(--st,0px),calc(var(--u)*7)) calc(var(--u)*6) max(calc(var(--u)*13),calc(var(--sb,0px) + var(--u)*10))}
+#stage.f-9x16 .in.t-post{padding-bottom:max(calc(var(--u)*30),calc(var(--sb,0px) + var(--u)*15));padding-left:calc(var(--u)*4.5);padding-right:calc(var(--u)*4.5)}
+.ps-bg{position:absolute;inset:0;overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--accent2) 55%,#0d1020),color-mix(in srgb,var(--accent) 45%,#0d1020))}
+.ps-bg i{position:absolute;width:70%;aspect-ratio:1;border-radius:50%;background:radial-gradient(closest-side,#ffffff2e,transparent);animation:ps-orbit 7s ease-in-out infinite alternate}
+.ps-bg i:nth-child(1){left:-20%;top:-20%}.ps-bg i:nth-child(2){right:-25%;top:30%;animation-duration:9s;animation-direction:alternate-reverse}.ps-bg i:nth-child(3){left:20%;bottom:-40%;animation-duration:11s}
+.ps-bg::after{content:"";position:absolute;inset:-50%;background:repeating-linear-gradient(45deg,#ffffff08 0 calc(var(--u)*3),transparent calc(var(--u)*3) calc(var(--u)*6));animation:ps-slide 6s linear infinite}
+@keyframes ps-orbit{to{transform:translate(12%,10%) scale(1.15)}}
+@keyframes ps-slide{to{transform:translate(calc(var(--u)*8.5),calc(var(--u)*8.5))}}
+.ps-card{position:relative;width:min(100%,calc(var(--u)*110));background:#ffffff;color:#1a1c22;border-radius:calc(var(--u)*2.2);padding:calc(var(--u)*3) calc(var(--u)*3.4) calc(var(--u)*2.4);box-shadow:0 calc(var(--u)*2) calc(var(--u)*7) #0006;display:flex;flex-direction:column;gap:calc(var(--u)*1.6);max-height:100%;min-height:0}
+.ps-head{display:flex;align-items:center;gap:calc(var(--u)*1.4);font:500 calc(var(--u)*2.3) var(--body);color:#5b606b}
+#stage.f-9x16 .ps-head{font-size:calc(var(--u)*3)}
+.ps-head b{display:block;color:#1a1c22;font-weight:700}
+.ps-head small{font-size:.85em}
+.ps-av{flex:none;display:grid;place-items:center;width:2.4em;height:2.4em;border-radius:50%;background:var(--accent);color:#fff;font-weight:700}
+.ps-tag{margin-left:auto;font-size:.8em;font-weight:700;color:var(--accent);border:calc(var(--u)*.2) solid currentColor;border-radius:99px;padding:.15em .8em;white-space:nowrap}
+.ps-title{margin:0;font-family:var(--display);font-weight:700;color:#1a1c22;line-height:1.12}
+.ps-title mark,.ps-body mark{background:none;color:var(--accent)}
+.ps-body{margin:0;color:#343844;min-height:0}
+.ps-foot{display:flex;gap:calc(var(--u)*3);font:600 calc(var(--u)*2.3) var(--body);color:#5b606b;border-top:calc(var(--u)*.15) solid #e6e8ee;padding-top:calc(var(--u)*1.4)}
+#stage.f-9x16 .ps-foot{font-size:calc(var(--u)*3)}
+.ps-vote{color:var(--accent)}
+.ps-share{margin-left:auto}
+
+/* plan 18 M6: before / after */
+#stage .in.t-beforeafter{left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;gap:calc(var(--u)*2.4);padding:max(var(--st,0px),calc(var(--u)*6)) calc(var(--u)*6) max(calc(var(--u)*12),calc(var(--sb,0px) + var(--u)*9))}
+#stage.f-9x16 .in.t-beforeafter{padding-bottom:max(calc(var(--u)*30),calc(var(--sb,0px) + var(--u)*15));padding-left:calc(var(--u)*4.5);padding-right:calc(var(--u)*4.5)}
+.t-beforeafter .headline{text-align:center;margin:0;flex:none}
+.ba{position:relative;flex:1 1 auto;min-height:0;border-radius:calc(var(--u)*2);overflow:hidden;box-shadow:0 calc(var(--u)*1) calc(var(--u)*4) #0003;animation:dt-in .5s ease .1s both}
+.ba-panel{position:absolute;inset:0;display:flex}
+.ba-after{background:linear-gradient(160deg,color-mix(in srgb,var(--ok) 22%,var(--bg)),color-mix(in srgb,var(--ok) 40%,var(--bg)))}
+.ba-before{background:linear-gradient(160deg,color-mix(in srgb,var(--ink) 12%,var(--bg)),color-mix(in srgb,var(--ink) 24%,var(--bg)));filter:saturate(.6);clip-path:inset(0 100% 0 0);animation:ba-wipe 2.6s cubic-bezier(.6,0,.3,1) var(--rv) both}
+.ba-box{position:absolute;top:0;bottom:0;width:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--u)*1.6);padding:calc(var(--u)*3);box-sizing:border-box;text-align:center}
+.ba-before .ba-box{left:0}
+.ba-after .ba-box{left:25%;animation:ba-move 2.6s cubic-bezier(.6,0,.3,1) var(--rv) both}
+.ba-label{font:700 calc(var(--u)*2.6) var(--display);letter-spacing:.14em;text-transform:uppercase;padding:0 .8em;border-radius:99px;color:#fff;box-shadow:0 0 0 .3em var(--c)}
+.ba-before .ba-label{--c:var(--alert);background:var(--alert)}
+.ba-after .ba-label{--c:var(--ok);background:var(--ok)}
+.lang-deva .ba-label{letter-spacing:0}
+.ba-text{margin:0;font-weight:700;color:var(--ink);width:100%}
+.ba-ic{width:calc(var(--u)*12);height:calc(var(--u)*12);color:var(--ink)}
+.ba-ic svg{width:100%;height:100%}
+.ba-img{width:100%;flex:0 1 46%;min-height:0;border-radius:calc(var(--u)*1.4);overflow:hidden}
+.ba-img img{width:100%;height:100%;object-fit:cover}
+.ba-items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:calc(var(--u)*.8);width:100%;text-align:left}
+.ba-items li{display:flex;align-items:center;gap:calc(var(--u)*1.2);font-weight:600;color:var(--ink)}
+.ba-items li>b{flex:none;width:1.5em;height:1.5em;display:grid;place-items:center;border-radius:50%;color:#fff;font-size:.8em}
+.ba-before .ba-items li>b{background:var(--alert)}
+.ba-after .ba-items li>b{background:var(--ok)}
+.ba-items .ba-item{flex:1;min-width:0}
+.ba-line{position:absolute;top:0;bottom:0;left:0;width:calc(var(--u)*.6);margin-left:calc(var(--u)*-.3);background:#fff;box-shadow:0 0 calc(var(--u)*1.5) #0006;opacity:0;animation:ba-line 2.6s cubic-bezier(.6,0,.3,1) var(--rv) both}
+.ba-line b{position:absolute;top:50%;left:50%;width:calc(var(--u)*6);height:calc(var(--u)*6);margin:calc(var(--u)*-3) 0 0 calc(var(--u)*-3);border-radius:50%;background:#fff;color:#222;display:grid;place-items:center;font-size:calc(var(--u)*3);box-shadow:0 0 calc(var(--u)*1.2) #0005}
+@keyframes ba-wipe{0%{clip-path:inset(0 100% 0 0)}45%,62%{clip-path:inset(0 0 0 0)}100%{clip-path:inset(0 50% 0 0)}}
+@keyframes ba-move{0%,62%{left:25%}100%{left:50%}}
+@keyframes ba-line{0%{left:0;opacity:0}4%{opacity:1}45%,62%{left:100%;opacity:1}100%{left:50%;opacity:1}}
+/* 9:16: the split is top / bottom */
+#stage.f-9x16 .ba-box{left:0 !important;width:100%;height:50%;top:0;bottom:auto}
+#stage.f-9x16 .ba-box{gap:calc(var(--u)*.9);padding:calc(var(--u)*2.2) calc(var(--u)*3)}
+#stage.f-9x16 .ba-ic{width:calc(var(--u)*8);height:calc(var(--u)*8)}
+#stage.f-9x16 .ba-img{flex-basis:38%}
+#stage.f-9x16 .ba-items{gap:calc(var(--u)*.4)}
+#stage.f-9x16 .ba{min-height:calc(var(--u)*90)}
+#stage.f-9x16 .ba-after .ba-box{top:25%;animation-name:ba-move-v}
+#stage.f-9x16 .ba-before{animation-name:ba-wipe-v}
+#stage.f-9x16 .ba-line{left:0;right:0;width:auto;top:0;bottom:auto;height:calc(var(--u)*.6);margin:calc(var(--u)*-.3) 0 0;animation-name:ba-line-v}
+@keyframes ba-wipe-v{0%{clip-path:inset(0 0 100% 0)}45%,62%{clip-path:inset(0 0 0 0)}100%{clip-path:inset(0 0 50% 0)}}
+@keyframes ba-move-v{0%,62%{top:25%}100%{top:50%}}
+@keyframes ba-line-v{0%{top:0;opacity:0}4%{opacity:1}45%,62%{top:100%;opacity:1}100%{top:50%;opacity:1}}
+@keyframes dt-in{from{opacity:0;transform:translateY(calc(var(--u)*1.2))}to{opacity:1;transform:none}}
+
 `;

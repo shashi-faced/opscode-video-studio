@@ -80,7 +80,7 @@ test('validate: styles pick their look; format templates and their aliases; no "
   const r = validate(sb({}, S));
   assert.deepEqual(r.storyboard.scenes.map((s) => s.template), ['title', 'rank', 'poll', 'chat', 'myth', 'fact', 'quiz', 'cta']);
   assert.ok(!r.warnings.some((w) => /does not fit/.test(w.message)), JSON.stringify(r.warnings));
-  assert.deepEqual(FORMAT_TEMPLATES, ['rank', 'fact', 'myth', 'quiz', 'poll', 'chat']);
+  assert.deepEqual(FORMAT_TEMPLATES, ['rank', 'fact', 'myth', 'quiz', 'poll', 'chat', 'post', 'beforeafter']);
   for (const t of FORMAT_TEMPLATES) assert.equal(validate(sb({}, [TEMPLATES[t].example, { template: 'cta', headline: 'Go' }])).ok, true, t);
 });
 

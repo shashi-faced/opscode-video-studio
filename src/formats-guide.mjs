@@ -17,6 +17,8 @@ export const STYLE_NOTES = {
   'paper-cutout': 'paper shapes with torn edges and soft shadows, stop-motion jitter, sticker-edged characters; stories, history, finance explainers',
   watercolor: 'soft painted washes on textured paper, pastel colours, serif titles; kids stories, bedtime, festivals',
   comic: 'comic panels: halftone dots, action lines, outlined characters, narration boxes, oval speech bubbles; add "sfx": "POW!" to a scene for a burst; stories, satire, kids',
+  clay: '3D in soft plasticine: matte clay characters and places with fingerprint texture, no outlines; kids stories, cosy explainers',
+  'low-poly': '3D with flat-shaded facets: low-poly characters, hills and trees; games, tech, nature, travel',
   isometric: '3/4-angle blocks (buildings, servers) on a platform with data flowing between them; how-it-works, systems, tech and logistics',
 };
 
@@ -24,7 +26,7 @@ export function stylesSection() {
   const out = ['\n## Art styles (optional: set "art": { "style": "<id>" })'];
   for (const id of Object.keys(STYLES)) {
     const base = styleBase(id);
-    out.push(`- ${id}: ${STYLES[id].label}. ${STYLE_NOTES[id] || ''}${base === 'stickman' ? ' (people are stickmen; sets look "stickman")' : base === 'motion' ? ' (text only; characters are not drawn)' : ' (works with the 2D look)'}`);
+    out.push(`- ${id}: ${STYLES[id].label}. ${STYLE_NOTES[id] || ''}${base === 'stickman' ? ' (people are stickmen; sets look "stickman")' : base === 'motion' ? ' (text only; characters are not drawn)' : base === '3d' ? ' (3D characters and places; sets look "3d")' : ' (works with the 2D look)'}`);
   }
   out.push('- Every video in a style varies a little by itself (colours, motion, transitions), so videos never look copied. Do not set "transition" unless the user asks.');
   out.push('- Pick by mood: horror for scary or mystery topics, neon for tech/gaming/future, comic or watercolor for kids, documentary for history and true crime, isometric for how-it-works.');
@@ -78,6 +80,21 @@ export const FORMAT_RECIPES = {
     example: { title: 'The excuse that failed', type: 'reel', platform: 'insta-reel', scenes: [
       { template: 'chat', contact: 'Mom', messages: [{ from: 'Mom', text: 'Where are you?' }, { from: 'me', text: 'Library, studying 📚' }, { from: 'Mom', text: 'Funny. I am at the library.' }], narration: 'I told Mom I was at the library. She was at the library.' }] },
   },
+  post: {
+    label: 'Post story (POV)',
+    recipe: 'post (the hook post: title + 2-4 sentences, read out) → story or dialogue scenes that act out what happened (3-5) → post with tag "Update" for the twist → cta asking what they would do. Generic design; never name a real site or community; our own moving background, never game footage.',
+    example: { title: 'The credit thief', type: 'reel', platform: 'insta-reel', scenes: [
+      { template: 'post', user: 'quiet_intern', community: 'Office Stories', time: '5h', title: 'My manager took credit for my idea. *So I let him present it.*', body: 'He did not know the numbers were mine too.', votes: 24800, comments: 1320, narration: 'My manager took credit for my idea. So I let him present it.' },
+      { template: 'dialogue', characters: [{ who: 'man' }, { who: 'woman' }], lines: [{ who: 'woman', text: 'Where did this number come from?' }, { who: 'man', text: 'Uh… the team?' }] },
+      { template: 'post', tag: 'Update', user: 'quiet_intern', title: 'I got *his job*.', votes: 51200, comments: 4100, narration: 'Update: I got his job.' }] },
+  },
+  beforeafter: {
+    label: 'Before / after',
+    recipe: 'title (the result as a promise) → beforeafter (after first, then the wipe to before) → steps (how to get there) → cta. Say "before" in the narration where the wipe should start.',
+    example: { title: '30-day morning reset', type: 'reel', platform: 'youtube-short', scenes: [
+      { template: 'beforeafter', headline: 'One habit, *30 days*', after: { text: 'Up at 6, calm mornings', icon: 'sun' }, before: { text: 'Snoozing till 9', icon: 'alarm' }, narration: 'This is me after thirty days. And before? Snoozing till nine.' },
+      { template: 'steps', headline: 'How', steps: ['Phone out of the bedroom', 'Same wake time daily', 'Sunlight first'], narration: 'Here is how.' }] },
+  },
   // Plan 18 M4: data and documentary.
   data: {
     label: 'Data story (charts)',
@@ -103,7 +120,7 @@ export const FORMAT_RECIPES = {
   },
 };
 export const FORMAT_IDS = Object.keys(FORMAT_RECIPES);
-const FORMAT_ALIASES = { 'top-n': 'countdown', top: 'countdown', ranking: 'countdown', list: 'countdown', fact: 'facts', 'rapid-fire': 'facts', trivia: 'quiz', myths: 'myth', 'myth-vs-truth': 'myth', 'would-you-rather': 'poll', wyr: 'poll', 'this-or-that': 'poll', 'chat-story': 'chat', text: 'chat', messages: 'chat', chart: 'data', charts: 'data', 'data-story': 'data', infographic: 'data', docu: 'documentary', history: 'documentary', map: 'documentary', timeline: 'documentary', 'true-crime': 'documentary', newsroom: 'news', 'breaking-news': 'news' };
+const FORMAT_ALIASES = { 'top-n': 'countdown', top: 'countdown', ranking: 'countdown', list: 'countdown', fact: 'facts', 'rapid-fire': 'facts', trivia: 'quiz', myths: 'myth', 'myth-vs-truth': 'myth', 'would-you-rather': 'poll', wyr: 'poll', 'this-or-that': 'poll', 'chat-story': 'chat', text: 'chat', messages: 'chat', 'post-story': 'post', pov: 'post', forum: 'post', 'reddit-story': 'post', 'before-after': 'beforeafter', 'before-and-after': 'beforeafter', transformation: 'beforeafter', 'then-and-now': 'beforeafter', chart: 'data', charts: 'data', 'data-story': 'data', infographic: 'data', docu: 'documentary', history: 'documentary', map: 'documentary', timeline: 'documentary', 'true-crime': 'documentary', newsroom: 'news', 'breaking-news': 'news' };
 export const resolveFormat = (f) => { const k = String(f || '').trim().toLowerCase().replace(/[\s_]+/g, '-'); return FORMAT_RECIPES[k] ? k : FORMAT_ALIASES[k] || null; };
 
 export function formatsSection(format) {

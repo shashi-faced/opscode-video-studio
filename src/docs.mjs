@@ -107,7 +107,7 @@ export function templatesDoc(type, platform, look, format) {
   // Stickman explainers tell the idea with characters too, so story and dialogue scenes are always offered.
   const fmt = resolveFormat(format);
   // Format templates (plan 18) fit any type: offered for reels and explainers, or when a format is asked for.
-  const fmtTemplates = fmt ? { countdown: ['rank'], facts: ['fact'], myth: ['myth'], quiz: ['quiz'], poll: ['poll'], chat: ['chat'], data: ['chart', 'stat'], documentary: ['map', 'timeline', 'chart'], news: ['news', 'map', 'chart'] }[fmt]
+  const fmtTemplates = fmt ? { countdown: ['rank'], facts: ['fact'], myth: ['myth'], quiz: ['quiz'], poll: ['poll'], chat: ['chat'], post: ['post', 'story', 'dialogue'], beforeafter: ['beforeafter', 'steps'], data: ['chart', 'stat'], documentary: ['map', 'timeline', 'chart'], news: ['news', 'map', 'chart'] }[fmt]
     : [...(!recipe || ['reel', 'explainer', 'ad'].includes(t) ? FORMAT_TEMPLATES : []), ...(!recipe || ['explainer', 'announcement'].includes(t) ? DATA_TEMPLATES : [])];
   const names = [...new Set([...(recipe ? recipe.templates : Object.keys(TEMPLATES)), ...(isStick ? ['story', 'dialogue'] : []), ...fmtTemplates, ...(fmt ? ['title', 'cta'] : [])])].filter((n) => TEMPLATES[n]);
   const usesCharacters = names.some(n => n === 'story' || n === 'dialogue');

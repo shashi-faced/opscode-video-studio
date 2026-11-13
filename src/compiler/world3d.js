@@ -111,8 +111,8 @@ function flat(color, { opacity = 1 } = {}) {
 }
 
 // ---------- organic sculpt geometry generators ----------
-function createStylizedHeadGeometry(r = 1, { jawWidth = 0.72, cheekPuff = 1.12, chinDrop = 0.08 } = {}) {
-  const geo = new THREE.SphereGeometry(r, 32, 24);
+function createStylizedHeadGeometry(r = 1, { jawWidth = 0.72, cheekPuff = 1.12, chinDrop = 0.08 } = {}, seg = [32, 24]) {
+  const geo = new THREE.SphereGeometry(r, ...seg);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
@@ -139,8 +139,8 @@ function createStylizedHeadGeometry(r = 1, { jawWidth = 0.72, cheekPuff = 1.12, 
   return geo;
 }
 
-function createStylizedTorsoGeometry(w = 1, h = 1, d = 1, { waistTaper = 0.82, hipWidth = 1.05 } = {}) {
-  const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 24, 16);
+function createStylizedTorsoGeometry(w = 1, h = 1, d = 1, { waistTaper = 0.82, hipWidth = 1.05 } = {}, seg = [24, 16]) {
+  const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, ...seg);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
@@ -165,8 +165,8 @@ function createStylizedTorsoGeometry(w = 1, h = 1, d = 1, { waistTaper = 0.82, h
   return geo;
 }
 
-function createStylizedShoeGeometry(len = 1, w = 1, h = 1) {
-  const geo = new THREE.BoxGeometry(w, h, len, 8, 4, 12);
+function createStylizedShoeGeometry(len = 1, w = 1, h = 1, seg = [8, 4, 12]) {
+  const geo = new THREE.BoxGeometry(w, h, len, ...seg);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
@@ -203,6 +203,57 @@ const G = {
   torsoFemale: createStylizedTorsoGeometry(1, 1, 1, { waistTaper: 0.74, hipWidth: 1.12 }),
   shoe: createStylizedShoeGeometry(1, 1, 1),
 };
+// ---------- 3D presets (plan 18 M6): clay and low-poly restyle every built mesh after a scene is made ----------
+const PRESET = ['clay', 'low-poly'].includes(SPEC.preset) ? SPEC.preset : null;
+// Low-poly: the shared shapes get coarse versions, so faces show as flat facets.
+const LOW = PRESET === 'low-poly' ? new Map([
+  [G.sphere, new THREE.SphereGeometry(1, 9, 6)], [G.cyl, new THREE.CylinderGeometry(1, 1, 1, 7)], [G.cone, new THREE.ConeGeometry(1, 1, 7)],
+  [G.capsule, new THREE.CapsuleGeometry(0.5, 1, 2, 7)], [G.hemi, new THREE.SphereGeometry(1, 9, 4, 0, Math.PI * 2, 0, Math.PI * 0.56)],
+  [G.head, createStylizedHeadGeometry(1, {}, [10, 8])], [G.headFemale, createStylizedHeadGeometry(1, { jawWidth: 0.68, cheekPuff: 1.15 }, [10, 8])],
+  [G.torso, createStylizedTorsoGeometry(1, 1, 1, {}, [8, 4])], [G.torsoFemale, createStylizedTorsoGeometry(1, 1, 1, { waistTaper: 0.74, hipWidth: 1.12 }, [8, 4])],
+  [G.shoe, createStylizedShoeGeometry(1, 1, 1, [2, 1, 3])],
+]) : null;
+// Clay: a soft fingerprint-and-dent bump texture, made from seeded noise (same every render).
+function clayBump() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), img = g.createImageData(256, 256), rnd = rng(9137);
+  const blobs = Array.from({ length: 90 }, () => [rnd() * 256, rnd() * 256, 6 + rnd() * 22, rnd() < 0.5 ? -1 : 1]);
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+    let v = 128 + (rnd() - 0.5) * 18;
+    for (const [bx, by, r, sgn] of blobs) { const dx = Math.min(Math.abs(x - bx), 256 - Math.abs(x - bx)), dy = Math.min(Math.abs(y - by), 256 - Math.abs(y - by)), d = Math.hypot(dx, dy); if (d < r) v += sgn * 22 * (1 - d / r) ** 2; }
+    const k = (y * 256 + x) * 4; img.data[k] = img.data[k + 1] = img.data[k + 2] = Math.max(0, Math.min(255, v)); img.data[k + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2);
+  return t;
+}
+const CLAY_BUMP = PRESET === 'clay' ? clayBump() : null;
+const presetMats = new Map();
+function presetMaterial(m) {
+  if (!m || !m.isMeshToonMaterial) return m;
+  if (presetMats.has(m)) return presetMats.get(m);
+  const n = new THREE.MeshStandardMaterial({
+    color: m.color.clone(), map: m.map || null, transparent: m.transparent, opacity: m.opacity, metalness: 0,
+    roughness: PRESET === 'clay' ? 0.82 : 0.95, flatShading: PRESET === 'low-poly',
+    ...(PRESET === 'clay' ? { bumpMap: CLAY_BUMP, bumpScale: 1.6 } : {}),
+  });
+  if (PRESET === 'clay') n.color.offsetHSL(0, -0.06, 0.03); // plasticine is a little softer than paint
+  if (m.emissive && m.emissiveIntensity) { n.emissive = m.emissive.clone(); n.emissiveIntensity = m.emissiveIntensity; }
+  // Skin keeps the warmth the toon skin ramp gave it (otherwise grass light turns faces green).
+  else if (m.gradientMap === skinRamp) { n.emissive = m.color.clone().multiply(new THREE.Color('#ffb8a0')); n.emissiveIntensity = 0.22; n.roughness = 0.7; }
+  n.userData.outlineParameters = { visible: false };
+  presetMats.set(m, n);
+  return n;
+}
+function applyPreset(root) {
+  if (!PRESET) return;
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    if (LOW && LOW.has(o.geometry)) o.geometry = LOW.get(o.geometry);
+    o.material = Array.isArray(o.material) ? o.material.map(presetMaterial) : presetMaterial(o.material);
+  });
+}
+
 function mesh(geo, mat, { p = [0, 0, 0], s = [1, 1, 1], r = [0, 0, 0], shadow = false, parent = null } = {}) {
   const m = new THREE.Mesh(geo, mat);
   m.position.set(...p);
@@ -1543,6 +1594,8 @@ function buildWorld(spec, r) {
 
   // Cinematic 3-Point Studio Lighting
   const lights = group(root);
+  // Presets light with physical materials, which pick up the ground colour strongly: keep it near neutral.
+  if (PRESET) hemi = [hemi[0], '#' + col(hemi[1]).clone().lerp(col('#d9cbbd'), 0.75).getHexString(), hemi[2]];
   lights.add(new THREE.HemisphereLight(col(hemi[0]), col(hemi[1]), hemi[2] * 1.05));
   const k = new THREE.DirectionalLight(col(key[0]), key[1] * 1.15);
   k.position.set(-6, 11, 8); k.castShadow = true;
@@ -1571,7 +1624,7 @@ renderer.setPixelRatio(LOWRES ? 2 / 3 : 1);
 renderer.setSize(W, H, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;
+renderer.toneMappingExposure = PRESET === 'clay' ? 1.0 : PRESET === 'low-poly' ? 1.12 : 1.08;
 renderer.shadowMap.enabled = !LOWRES;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const effect = new OutlineEffect(renderer, { defaultThickness: 0.0038, defaultColor: [0.06, 0.04, 0.05] });
@@ -1609,6 +1662,7 @@ for (const [idx, spec] of Object.entries(SPEC.scenes)) {
   }
   const tl = TL.scenes[i] || { start: 0, duration: 4, parts: [] };
   const lines = (tl.parts || []).filter(p => p.kind === 'line').map(p => ({ who: p.who, line: p.line, start: p.start - tl.start, end: p.end - tl.start, visemes: (p.visemes || []).map(([vt, x]) => [vt - tl.start, x]) }));
+  applyPreset(scene);
   scenes[i] = { scene, world, chars, spec, duration: tl.duration || 4, lines, camera: new THREE.PerspectiveCamera(FOV, ASPECT, 0.1, 400) };
 }
 

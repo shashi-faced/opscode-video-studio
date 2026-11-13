@@ -159,7 +159,7 @@ export function compile(storyboard, timeline, { baseDir, buildDir, progress = tr
     }
     const kinds = {};
     for (const w of Object.values(world)) for (const c of w.characters) kinds[c.kind] = KIND_INFO[c.kind] || KIND_INFO.rabbit;
-    const spec = { width: stage.width, height: stage.height, format: storyboard.format, seed: storyboard.title || 'video', kinds, models, props, scenes: world };
+    const spec = { width: stage.width, height: stage.height, format: storyboard.format, seed: storyboard.title || 'video', preset: style?.preset3d || null, kinds, models, props, scenes: world };
     worldHead = `<script type="importmap">{"imports":{"three":"./assets/three/three.module.js","three/addons/":"./assets/three/addons/"}}</script>`;
     worldBody = `<canvas id="w3d" width="${stage.width}" height="${stage.height}"></canvas>
 <script type="application/json" id="world3d">${JSON.stringify(spec).replace(/</g, '\\u003c')}</script>

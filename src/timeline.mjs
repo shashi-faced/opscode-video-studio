@@ -10,6 +10,7 @@ export { alignWords };
 export function afterVoice(sc) {
   if (sc.template === 'quiz') return Math.min(10, Math.max(2, +sc.countdown || 3)) + 1.6;
   if (sc.template === 'poll') return 1.6;
+  if (sc.template === 'beforeafter') return 1.2;
   if (sc.template === 'chart') return sc.kind === 'race' ? 1.2 : 1.0; // let the numbers finish counting
   if (sc.template === 'map' || sc.template === 'timeline') return 0.8;
   return 0;
@@ -22,7 +23,7 @@ export function minDuration(sc) {
   return (TEMPLATE_MIN[sc.template] ?? 4) + (sc.template === 'quiz' && !sc.narration ? afterVoice(sc) : 0);
 }
 
-export const TEMPLATE_MIN = { title: 3.5, feature: 5, bullets: 4.5, split: 4.5, stat: 4, quote: 4.5, cta: 5, story: 3.5, dialogue: 3, steps: 5, rank: 3.5, fact: 3.5, myth: 5, quiz: 5, poll: 5, chat: 4, chart: 5, timeline: 5, map: 4.5, news: 4.5 };
+export const TEMPLATE_MIN = { title: 3.5, feature: 5, bullets: 4.5, split: 4.5, stat: 4, quote: 4.5, cta: 5, story: 3.5, dialogue: 3, steps: 5, rank: 3.5, fact: 3.5, myth: 5, quiz: 5, poll: 5, chat: 4, post: 5, beforeafter: 5.5, chart: 5, timeline: 5, map: 4.5, news: 4.5 };
 // Pause between spoken parts of one scene (narration, then each dialogue line).
 export const PART_GAP = 0.35;
 export const LEAD_IN = 0.4;

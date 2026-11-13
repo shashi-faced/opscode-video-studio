@@ -126,7 +126,7 @@ export const COMMON_FIELDS = {
 };
 
 /** Format templates (plan 18): they fit any video type. */
-export const FORMAT_TEMPLATES = ['rank', 'fact', 'myth', 'quiz', 'poll', 'chat'];
+export const FORMAT_TEMPLATES = ['rank', 'fact', 'myth', 'quiz', 'poll', 'chat', 'post', 'beforeafter'];
 /** Data and documentary templates (plan 18 M4): they fit any video type too. */
 export const DATA_TEMPLATES = ['chart', 'timeline', 'map', 'news'];
 
@@ -308,6 +308,28 @@ export const TEMPLATES = {
       messages: list(obj({ from: str(20, { doc: '"me" or the other person' }), text: str(120, { required: true }) }), 14, { required: true, min: 1, doc: '1-14 short messages in order' }),
     },
     example: { template: 'chat', contact: 'Mom', messages: [{ from: 'Mom', text: 'Where are you?? It is 11 pm' }, { from: 'me', text: 'At Rahul\'s, studying 📚' }, { from: 'Mom', text: 'Rahul is here with me.' }], narration: 'Mom texted at eleven. I said I was studying at Rahul\'s. Big mistake.' },
+  },
+  post: {
+    use: 'Post story (POV): a forum-style post card that the narrator reads out, over a moving background; votes and comments count up. Generic design: never name or imitate a real site. Follow it with story scenes that play out what happened.',
+    fields: {
+      title: str(110, { required: true, soft: 80, doc: 'the post title, e.g. "My boss asked me to work on Diwali. I said no."' }),
+      body: str(320, { soft: 220, doc: 'the post text (2-4 short sentences)' }),
+      user: str(24, { doc: 'user name shown on the post (made up)' }),
+      community: str(30, { doc: 'where it was posted, made up and generic, e.g. "Office Stories"' }),
+      time: str(12, { doc: 'e.g. "5h"' }),
+      tag: str(16, { doc: 'small label, e.g. "Update"' }),
+      votes: num(0, 1e7), comments: num(0, 1e7),
+    },
+    example: { template: 'post', user: 'quiet_intern', community: 'Office Stories', time: '5h', title: 'My manager took credit for my idea. *So I let him present it.*', body: 'He did not know the numbers were mine too. When the CEO asked one question, he froze.', votes: 24800, comments: 1320, narration: 'My manager took credit for my idea, so I let him present it. He did not know the numbers were mine too.' },
+  },
+  beforeafter: {
+    use: 'Before and after: the "after" shows first, then a wipe reveals the "before", and it settles as a split with both, labelled. Say "before" in the narration when the wipe should start. Each side: a short text, an optional icon or image, and up to 4 points.',
+    fields: {
+      headline: str(70, { soft: 46 }),
+      before: obj({ label: str(20), text: str(80, { soft: 50 }), icon: str(30), image: { type: 'path' }, items: list(str(50), 4) }, { required: true, doc: '{ "text", "items", "icon" or "image" }' }),
+      after: obj({ label: str(20), text: str(80, { soft: 50 }), icon: str(30), image: { type: 'path' }, items: list(str(50), 4) }, { required: true, doc: 'the same, for after' }),
+    },
+    example: { template: 'beforeafter', headline: 'One habit, *30 days*', after: { text: 'Up at 6, calm mornings', icon: 'sun', items: ['8 hours of sleep', 'Breakfast every day'] }, before: { text: 'Snoozing till 9', icon: 'alarm', items: ['Late every day', 'Coffee for breakfast'] }, narration: 'This is me after thirty days. And before? Snoozing till nine, every single day.' },
   },
   // ───────── plan 18 M4: data and documentary ─────────
   chart: {

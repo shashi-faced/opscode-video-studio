@@ -67,6 +67,8 @@ const TEMPLATE_ALIASES = {
   history: 'timeline', 'time-line': 'timeline', chronology: 'timeline', events: 'timeline', milestones: 'timeline', journey: 'timeline', years: 'timeline',
   'world-map': 'map', geography: 'map', route: 'map', location: 'map', locations: 'map', places: 'map', country: 'map', countries: 'map', globe: 'map',
   newsroom: 'news', breaking: 'news', 'breaking-news': 'news', bulletin: 'news', 'news-flash': 'news', 'news-report': 'news', 'news-update': 'news',
+  'post-story': 'post', 'forum-post': 'post', forum: 'post', pov: 'post', confession: 'post', 'text-post': 'post', 'social-post': 'post', reddit: 'post', 'reddit-story': 'post', aita: 'post',
+  'before-after': 'beforeafter', 'before-and-after': 'beforeafter', 'before-vs-after': 'beforeafter', transformation: 'beforeafter', 'then-and-now': 'beforeafter', 'then-now': 'beforeafter', glowup: 'beforeafter', 'glow-up': 'beforeafter', makeover: 'beforeafter',
   'chat-story': 'chat', 'text-story': 'chat', messages: 'chat', 'text-message': 'chat', 'text-messages': 'chat', sms: 'chat', whatsapp: 'chat', imessage: 'chat', texting: 'chat', 'message-thread': 'chat',
   'how-to': 'steps', howto: 'steps', process: 'steps', procedure: 'steps', tutorial: 'steps', recipe: 'steps', numbered: 'steps', step: 'steps',
   intro: 'title', hero: 'title', opening: 'title', cover: 'title',
@@ -95,6 +97,8 @@ const TEMPLATE_FIELD_ALIASES = {
   chart: { items: 'data', series: 'data', values: 'data', rows: 'data', type: 'kind', chart: 'kind', years: 'steps', title: 'headline', heading: 'headline', unit: 'suffix', currency: 'prefix' },
   timeline: { items: 'events', milestones: 'events', dates: 'events', title: 'headline', heading: 'headline' },
   map: { places: 'pins', cities: 'pins', markers: 'pins', points: 'pins', path: 'route', journey: 'route', countries: 'highlight', area: 'region', focus: 'region', title: 'headline', heading: 'headline', text: 'subline' },
+  post: { headline: 'title', heading: 'title', text: 'body', content: 'body', author: 'user', username: 'user', name: 'user', upvotes: 'votes', likes: 'votes', subreddit: 'community', group: 'community', forum: 'community' },
+  beforeafter: { title: 'headline', heading: 'headline', then: 'before', now: 'after', old: 'before', new: 'after' },
   news: { title: 'headline', heading: 'headline', tag: 'kicker', label: 'kicker', text: 'subline', description: 'subline', details: 'subline', headlines: 'ticker', location: 'place', city: 'place', photo: 'image', picture: 'image' },
   steps: { items: 'steps', bullets: 'steps', points: 'steps', list: 'steps', title: 'headline', heading: 'headline' },
 };
@@ -217,7 +221,7 @@ export function normalise(input, warnings) {
   // Stickman art style: "art": { "style" }. A bare string or a style name in "look" also works.
   if (typeof sb.art === 'string') sb.art = { style: sb.art };
   if (typeof sb.look === 'string' && !LOOKS.includes(sb.look) && aliasOf(sb.look, ART_STYLES, STYLE_ALIASES)) {
-    const st = aliasOf(sb.look, ART_STYLES, STYLE_ALIASES), base = styleBase(st) === 'stickman' ? 'stickman' : '2d';
+    const st = aliasOf(sb.look, ART_STYLES, STYLE_ALIASES), base = ['stickman', '3d'].includes(styleBase(st)) ? styleBase(st) : '2d';
     warn('look', `"${sb.look}" is an art style: look "${base}", art.style "${st}"`);
     sb.art = { ...(isObj(sb.art) ? sb.art : {}), style: st };
     sb.look = base;
@@ -228,8 +232,9 @@ export function normalise(input, warnings) {
     // Stickman styles need the stickman look; the others (kinetic, flat-vector) work with the 2D look.
     if (sb.look === undefined && sb.art.style) {
       const base = styleBase(sb.art.style);
-      if (base === 'stickman') { warn('look', 'art.style is set, so look is "stickman"'); sb.look = 'stickman'; } else sb.look = '2d';
+      if (base === 'stickman') { warn('look', 'art.style is set, so look is "stickman"'); sb.look = 'stickman'; } else sb.look = base === '3d' ? '3d' : '2d';
     }
+    if (sb.look !== '3d' && sb.art.style && styleBase(sb.art.style) === '3d' && ART_STYLES.includes(sb.art.style)) { warn('look', `art style "${sb.art.style}" is a 3D preset, so look is "3d"`); sb.look = '3d'; }
     if (sb.look === '2d' && sb.art.style && styleBase(sb.art.style) === 'stickman' && ART_STYLES.includes(sb.art.style)) { warn('look', `art style "${sb.art.style}" draws stickmen, so look is "stickman"`); sb.look = 'stickman'; }
     if (typeof sb.art.theme === 'string') sb.art.theme = /dark|black|night/i.test(sb.art.theme) ? 'dark' : 'light';
   }
@@ -399,6 +404,12 @@ export function normalise(input, warnings) {
         return e;
       }).map((e) => (isObj(e) && typeof e.year === 'number' ? { ...e, year: String(e.year) } : e));
     }
+    if (s.template === 'beforeafter') for (const k of ['before', 'after']) {
+      if (typeof s[k] === 'string') s[k] = { text: s[k] };
+      else if (Array.isArray(s[k])) s[k] = { items: s[k] };
+      if (isObj(s[k]) && typeof s[k].items === 'string') s[k] = { ...s[k], items: s[k].items.split(/[,;|•]/).map((x) => x.trim()).filter(Boolean) };
+    }
+    if (s.template === 'post') { for (const k of ['votes', 'comments']) if (typeof s[k] === 'string') { const m = s[k].trim().toLowerCase().match(/^([\d.,]+)\s*([km])?$/); if (m) s[k] = Math.round(parseFloat(m[1].replace(/,/g, '')) * (m[2] === 'k' ? 1e3 : m[2] === 'm' ? 1e6 : 1)); } }
     if (s.template === 'news' && typeof s.ticker === 'string') s.ticker = s.ticker.split(/\s*[|•]\s*/).filter(Boolean);
     if (s.template === 'story' || s.template === 'dialogue') {
       if (Array.isArray(s.characters)) s.characters = s.characters.map((c, j) => normCharacter(c, `scenes[${i}].characters[${j}]`, warn));

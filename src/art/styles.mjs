@@ -121,12 +121,28 @@ const NEW_STYLES = {
     accents: [['#e0a84a', '#7fa7c9'], ['#d9734a', '#c9b37f'], ['#c9b37f', '#8fb3a6'], ['#e8c766', '#b5655a'], ['#9fc0d9', '#e0a84a']],
     grounds: ['radial-gradient(120% 100% at 50% 35%,#1c1915 0%,#0f0e0c 70%)', 'radial-gradient(120% 100% at 30% 30%,#161b20 0%,#0b0e11 70%)', 'radial-gradient(120% 100% at 60% 40%,#1f1714 0%,#0e0a09 72%)'],
   },
+  // Plan 18 M6: 3D presets. The 3D engine restyles every model (world3d.js, SPEC.preset); these entries
+  // give the text scenes matching colours and fonts.
+  clay: {
+    label: 'Clay 3D', base: '3d', kind: 'paper', preset3d: 'clay',
+    theme: { dark: false, bg: '#f6eee4', bg2: '#efe2d2', bg3: '#e6d4bf', ink: '#3a2f2a', muted: '#7a6a5e', accent: '#e86f51', accent2: '#4fa3a5', ok: '#6fae6a', alert: '#d9534f', onAccent: '#ffffff', display: 'Poppins' },
+    font: { display: '"Poppins","Hind"', body: '"Hind"' },
+    stage: 'radial-gradient(120% 100% at 50% 30%,#fbf5ee 0%,#efe2d2 100%)', caption: 'box-light', underline: false,
+    accents: [['#e86f51', '#4fa3a5'], ['#f2a541', '#6a8fd1'], ['#d6608a', '#f2c14e'], ['#6fae6a', '#e86f51']],
+  },
+  'low-poly': {
+    label: 'Low-poly 3D', base: '3d', kind: 'paper', preset3d: 'low-poly',
+    theme: { dark: false, bg: '#eaf2f6', bg2: '#dbe8ef', bg3: '#cddde8', ink: '#1f2d3a', muted: '#55687a', accent: '#ff7a45', accent2: '#2fa4c7', ok: '#3bb27a', alert: '#e5484d', onAccent: '#ffffff', display: 'Poppins' },
+    font: { display: '"Poppins","Hind"', body: '"Hind"' },
+    stage: 'linear-gradient(160deg,#f0f6f9 0%,#d8e6ee 100%)', caption: 'box-light', underline: false,
+    accents: [['#ff7a45', '#2fa4c7'], ['#7f5af0', '#2cb67d'], ['#f2b134', '#3d7dd8'], ['#e5484d', '#2fa4c7']],
+  },
 };
 Object.assign(STYLES, NEW_STYLES, LOOKS2);
 
 
 export const ART_STYLES = Object.keys(STYLES);
-/** The look a style is built on: "stickman", "2d" or "motion" (no characters). */
+/** The look a style is built on: "stickman", "2d", "3d" or "motion" (no characters). */
 export const styleBase = (id) => STYLES[id]?.base || 'stickman';
 /** Styles that need look "stickman"; the others work with any 2D video. */
 export const STICK_STYLES = ART_STYLES.filter((id) => styleBase(id) === 'stickman');
@@ -291,3 +307,4 @@ function extraCss(id, s, t, sel, v) {
 }
 // Plan 18 M5 looks (horror now means the horror look, not the survival thriller).
 Object.assign(STYLE_ALIASES, LOOK2_ALIASES);
+Object.assign(STYLE_ALIASES, { clay: 'clay', claymation: 'clay', plasticine: 'clay', 'clay 3d': 'clay', 'clay animation': 'clay', 'stop-motion clay': 'clay', 'low poly': 'low-poly', lowpoly: 'low-poly', 'low-poly 3d': 'low-poly', polygon: 'low-poly', faceted: 'low-poly', geometric: 'low-poly' });
