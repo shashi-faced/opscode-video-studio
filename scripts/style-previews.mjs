@@ -1,4 +1,4 @@
-// Renders the Video Studio style gallery tiles (plan 15): one short sample scene per stickman style,
+// Renders the Video Studio style gallery tiles (plan 15, plan 18): one short sample scene per style,
 // saved as a 4 s looping WebM (480×270, no sound) and a JPG poster. Made by our own engine, so a tile
 // shows exactly what that style produces.
 //
@@ -24,6 +24,30 @@ const SAMPLES = {
   'noir-thriller': { headline: 'Never open *the door*', who: 'man', pose: 'idle', mood: 'shocked', props: [{ icon: 'siren', position: 'right', y: 'air', enter: 'pop', at: 0.9 }] },
 };
 
+// Plan 18: styles that are not plain stickman story scenes get their own sample storyboard.
+const story2d = (headline, extra = {}) => ({
+  cast: [{ id: 'mia', kind: 'girl', name: 'Mia' }, { id: 'kai', kind: 'boy', name: 'Kai' }],
+  scenes: [{ template: 'story', duration: 4.6, headline, background: extra.background || 'meadow', time: extra.time, sfx: extra.sfx,
+    characters: [{ who: 'mia', position: 'left', pose: 'wave', mood: 'happy', enter: 'pop' }, { who: 'kai', position: 'right', pose: 'cheer', mood: 'grin', enter: 'pop' }] }],
+});
+const BUILD = {
+  whiteboard: () => ({ look: 'stickman', cast: [{ id: 'hero', kind: 'man', name: 'Hero' }], scenes: [{ template: 'story', duration: 4.6, headline: 'How *ideas* grow', characters: [{ who: 'hero', pose: 'point', mood: 'happy', position: 'left' }], props: [{ icon: 'lightbulb', position: 'right', y: 'air', enter: 'draw', at: 0.6 }] }] }),
+  chalkboard: () => ({ look: 'stickman', cast: [{ id: 'hero', kind: 'woman', name: 'Hero' }], scenes: [{ template: 'story', duration: 4.6, headline: 'Why is the sky *blue*?', characters: [{ who: 'hero', pose: 'think', mood: 'happy', position: 'left' }], props: [{ icon: 'sun', position: 'right', y: 'air', enter: 'draw', at: 0.6 }] }] }),
+  kinetic: () => ({ scenes: [{ template: 'title', duration: 4.6, headline: 'Small habits. *Big* results.', subline: 'Start today' }] }),
+  'flat-vector': () => story2d('Save money *every month*', { background: 'city' }),
+  documentary: () => ({ scenes: [{ template: 'map', duration: 4.6, kicker: 'The spice route', headline: 'From *Kochi* to *Venice*', route: ['Kochi', 'Muscat', 'Cairo', 'Venice'], highlight: ['India'] }] }),
+  neon: () => ({ look: 'stickman', cast: [{ id: 'hero', kind: 'man', name: 'Hero' }], scenes: [{ template: 'story', duration: 4.6, headline: 'The year *2099*', characters: [{ who: 'hero', pose: 'cheer', mood: 'grin', position: 'left' }] }] }),
+  horror: () => ({ look: 'stickman', cast: [{ id: 'hero', kind: 'man', name: 'Hero' }], scenes: [{ template: 'story', duration: 4.6, headline: 'Never look *behind you*', characters: [{ who: 'hero', pose: 'idle', mood: 'shocked', position: 'left' }] }] }),
+  'retro-pixel': () => story2d('Level *up* your life'),
+  'paper-cutout': () => ({ scenes: [{ template: 'title', duration: 4.6, kicker: 'Story time', headline: 'The *paper* kingdom', subline: 'Once upon a time' }] }),
+  watercolor: () => story2d('The *kind* little star', { background: 'forest' }),
+  comic: () => story2d('Meanwhile, *at school*…', { sfx: 'POW!' }),
+  isometric: () => ({ scenes: [{ template: 'title', duration: 4.6, kicker: 'How it works', headline: 'Your data, *step by step*' }] }),
+  clay: () => ({ look: '3d', cast: [{ id: 'mia', kind: 'girl', name: 'Mia' }, { id: 'rex', kind: 'dog', name: 'Rex' }], scenes: [{ template: 'story', duration: 4.6, background: 'meadow', camera: 'two-shot', characters: [{ who: 'mia', position: 'left', pose: 'wave' }, { who: 'rex', position: 'right' }] }] }),
+  'low-poly': () => ({ look: '3d', cast: [{ id: 'kai', kind: 'boy', name: 'Kai' }, { id: 'fox', kind: 'fox', name: 'Fox' }], scenes: [{ template: 'story', duration: 4.6, background: 'forest', camera: 'two-shot', characters: [{ who: 'kai', position: 'left', pose: 'wave' }, { who: 'fox', position: 'right' }] }] }),
+};
+for (const id of Object.keys(BUILD)) SAMPLES[id] = { build: BUILD[id] };
+
 const [outDir, ...only] = process.argv.slice(2);
 if (!outDir) { console.error('usage: node scripts/style-previews.mjs <out dir> [style …]'); process.exit(2); }
 fs.mkdirSync(outDir, { recursive: true });
@@ -34,7 +58,8 @@ const ids = only.length ? only : Object.keys(SAMPLES);
 for (const id of ids) {
   const s = SAMPLES[id];
   if (!s || !STYLES[id]) { console.log(`skip ${id}`); continue; }
-  const sb = {
+  const custom = s.build?.();
+  const sb = custom ? { title: `tile ${id}`, type: 'explainer', format: '16:9', ...custom, art: { style: id }, captions: false, music: { volume: 0 }, scenes: [...custom.scenes, { template: 'title', duration: 1, headline: 'end' }] } : {
     title: `tile ${id}`, type: 'explainer', format: '16:9', look: 'stickman', art: { style: id }, captions: false, music: { volume: 0 },
     cast: [{ id: 'hero', kind: s.who, name: 'Hero' }],
     scenes: [

@@ -192,6 +192,9 @@ export function looksCss(s, t, sel) {
     o.push(`${sel} .t-story .bg{filter:url(#lk-wc) saturate(.75) brightness(1.06) contrast(.92)}`);
     o.push(`${sel} .chwrap svg{filter:url(#lk-wc) saturate(.85)}`);
     o.push(`${sel} .headline{font-weight:400;color:var(--ink)}`);
+    // Story titles sit on painted scenery: light letters with a soft shadow, like a picture book.
+    o.push(`${sel} .storytitle .headline{color:#fffdf7;text-shadow:0 calc(var(--u)*.25) calc(var(--u)*.6) #3b394699,0 0 calc(var(--u)*2.4) #3b394666}`);
+    o.push(`${sel} .storytitle .headline mark{color:#ffe08a}`);
     o.push(`${sel} .headline mark{background:none;color:var(--accent)}`);
     o.push(`${sel} .kicker{color:var(--accent2);font-style:italic}`);
     o.push(`${sel} ${CARDS.split(',').join(`,${sel} `)}{background:color-mix(in srgb,var(--bg) 70%,transparent);border:none;border-radius:calc(var(--u)*2.6);box-shadow:0 0 0 calc(var(--u)*.2) color-mix(in srgb,var(--accent2) 30%,transparent);color:var(--ink)}`);
