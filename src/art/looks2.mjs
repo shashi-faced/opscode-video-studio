@@ -124,6 +124,10 @@ export function looksCss(s, t, sel) {
     o.push(`${sel} .lk.txt .nx-sun{bottom:20%;width:min(30%,calc(var(--u)*24));opacity:.55}`);
     o.push(`${sel} .lk.txt .nx-horizon{bottom:20%}`);
     o.push(`${sel} .lk.txt .nx-floor{height:26%}`);
+    // Charts, timelines, quizzes and lists: no sun behind the content, a lower grid.
+    o.push(`${sel} .lk.busy .nx-sun{display:none}`);
+    o.push(`${sel} .lk.busy .nx-floor{height:16%;opacity:.55}`);
+    o.push(`${sel} .lk.busy .nx-horizon{bottom:12%;opacity:.6}`);
   }
 
   if (L === 'horror') {
@@ -258,7 +262,7 @@ export function looksDecor(style, v, index, theme, sc = {}, fi = 0) {
 
   if (L === 'neon') {
     const stars = Array.from({ length: 22 }, (_, k) => `<i class="nx-star" style="left:${r1(rnd() * 100)}%;top:${r1(rnd() * 55)}%;animation-delay:-${r1(rnd() * 2.4)}s;opacity:${(0.4 + rnd() * 0.6).toFixed(2)}"></i>`).join('');
-    return `<div class="lk${story ? '' : ' txt'}">${stars}<div class="nx-sun"></div><div class="nx-horizon"></div><div class="nx-floor"></div></div>`;
+    return `<div class="lk${story ? '' : ' txt'}${busy ? ' busy' : ''}">${stars}<div class="nx-sun"></div><div class="nx-horizon"></div><div class="nx-floor"></div></div>`;
   }
   if (L === 'horror') {
     return `<div class="lk"><div class="hr-fog" style="bottom:${r1(rnd() * 10)}%"></div><div class="hr-fog f2" style="bottom:${r1(18 + rnd() * 18)}%"></div><div class="hr-flick" style="animation-delay:-${r1(rnd() * 3.7)}s"></div></div>`;
