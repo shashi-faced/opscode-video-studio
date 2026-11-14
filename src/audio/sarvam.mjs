@@ -12,21 +12,30 @@ const SARVAM_API_BASE = process.env.OPSCODE_SARVAM_BASE || 'https://api.sarvam.a
 const CACHE_DIR = path.join(HOME_DIR, 'cache', 'sarvam');
 
 export const SARVAM_MODELS = [
-  { id: 'bulbul:v1', label: 'Bulbul v1: Expressive Indic (Default)' },
-  { id: 'bulbul:v2', label: 'Bulbul v2: High clarity' },
-  { id: 'bulbul:v4-flash', label: 'Bulbul v4-flash: Ultra-fast' },
+  { id: 'bulbul:v3', label: 'Bulbul v3: Natural Indic prosody & 11 languages (Default)' },
+  { id: 'bulbul:v4-flash', label: 'Bulbul v4-flash: Ultra-low latency' },
 ];
 
 export const SARVAM_SPEAKERS = [
-  { id: 'ritu', name: 'Ritu', gender: 'female', role: 'narrator', hint: 'Warm and natural, great for stories' },
-  { id: 'shubh', name: 'Shubh', gender: 'male', role: 'character', hint: 'Punchy and energetic, great for reels' },
-  { id: 'meera', name: 'Meera', gender: 'female', role: 'character', hint: 'Expressive and friendly' },
-  { id: 'arvind', name: 'Arvind', gender: 'male', role: 'narrator', hint: 'Authoritative and deep' },
-  { id: 'amartya', name: 'Amartya', gender: 'male', role: 'character', hint: 'Youthful and conversational' },
-  { id: 'anushka', name: 'Anushka', gender: 'female', role: 'character', hint: 'Playful and bright' },
-  { id: 'amrish', name: 'Amrish', gender: 'male', role: 'character', hint: 'Mature and commanding' },
-  { id: 'priya', name: 'Priya', gender: 'female', role: 'character', hint: 'Soft and gentle' },
+  { id: 'shubh', name: 'Shubh', gender: 'male', role: 'narrator', hint: 'Deep, dramatic and clear narration' },
+  { id: 'priya', name: 'Priya', gender: 'female', role: 'narrator', hint: 'Warm and natural storyteller' },
+  { id: 'ritu', name: 'Ritu', gender: 'female', role: 'character', hint: 'Calm, gentle and clear' },
+  { id: 'ratan', name: 'Ratan', gender: 'male', role: 'character', hint: 'Authoritative, news and formal' },
+  { id: 'amit', name: 'Amit', gender: 'male', role: 'character', hint: 'Conversational and relatable' },
+  { id: 'kavya', name: 'Kavya', gender: 'female', role: 'character', hint: 'Expressive and friendly' },
+  { id: 'ishita', name: 'Ishita', gender: 'female', role: 'character', hint: 'Professional and lively' },
+  { id: 'rahul', name: 'Rahul', gender: 'male', role: 'character', hint: 'Youthful and energetic' },
+  { id: 'simran', name: 'Simran', gender: 'female', role: 'character', hint: 'Polite and clear' },
+  { id: 'manan', name: 'Manan', gender: 'male', role: 'character', hint: 'Warm and conversational' },
+  { id: 'pooja', name: 'Pooja', gender: 'female', role: 'character', hint: 'Bright and cheerful' },
+  { id: 'dev', name: 'Dev', gender: 'male', role: 'character', hint: 'Youthful and casual' },
 ];
+
+export function normalizeSarvamModel(model) {
+  if (!model || model === 'bulbul:v1' || model === 'bulbul:v2') return 'bulbul:v3';
+  if (model === 'bulbul:v4-flash') return 'bulbul:v4-flash';
+  return 'bulbul:v3';
+}
 
 export class SarvamError extends Error {
   constructor(message, { code = 'error', status = 0 } = {}) {
@@ -42,7 +51,7 @@ export async function validateSarvamKey(key = sarvamKey()) {
   const k = String(key || '').trim();
   if (!k) throw new SarvamError('No Sarvam AI API subscription key provided', { code: 'no_key' });
 
-  // Test the key with a short greeting
+  // Test the key with a short greeting on bulbul:v3
   const res = await fetch(`${SARVAM_API_BASE}/text-to-speech`, {
     method: 'POST',
     headers: {
@@ -52,8 +61,9 @@ export async function validateSarvamKey(key = sarvamKey()) {
     body: JSON.stringify({
       inputs: ['नमस्ते'],
       target_language_code: 'hi-IN',
-      speaker: 'ritu',
-      model: 'bulbul:v1',
+      speaker: 'shubh',
+      model: 'bulbul:v3',
+      speech_sample_rate: 22050,
     }),
   });
 
@@ -69,24 +79,35 @@ export async function validateSarvamKey(key = sarvamKey()) {
 
   const json = await res.json();
   if (!json.audios || !Array.isArray(json.audios) || !json.audios.length) {
-    throw new SarvamError('Sarvam AI returned no audio data', { code: 'no_audio' });
+    throw new SarvamError('Sarvam AI returned no audio', { code: 'no_audio' });
   }
-  return { ok: true };
+
+  return true;
 }
 
 /**
- * Generate speech via Sarvam AI TTS.
+ * Generate speech for a piece of text with Sarvam AI.
  * Returns { audio: Buffer, characters: number, format: 'wav', cached: boolean }
  */
-export async function speakSarvam({ text, language = 'hi-IN', speaker = 'ritu', model = 'bulbul:v1', pace = 1.0, apiKey }) {
+export async function speakSarvam({
+  text,
+  language = 'hi-IN',
+  speaker = 'shubh',
+  model = 'bulbul:v3',
+  pace = 1.0,
+  apiKey,
+} = {}) {
   const k = String(apiKey || sarvamKey() || '').trim();
-  if (!k) throw new SarvamError('Sarvam AI key is not configured', { code: 'not_connected' });
+  if (!k) throw new SarvamError('No Sarvam AI API subscription key configured', { code: 'no_key' });
 
-  const cleanText = String(text || '').trim();
-  if (!cleanText) throw new SarvamError('Text is empty', { code: 'empty_text' });
+  const cleanText = stripTags(text || '').replace(/\*/g, '').trim();
+  if (!cleanText) return { audio: Buffer.alloc(0), characters: 0, format: 'wav', cached: true };
 
-  // Format language code (e.g. 'hi' -> 'hi-IN', 'en' -> 'en-IN')
-  let langCode = language;
+  const validModel = normalizeSarvamModel(model);
+  const validSpeaker = speaker || (validModel === 'bulbul:v4-flash' ? 'shubh_enhi_ads' : 'shubh');
+
+  // Determine target language code
+  let langCode = language || 'hi-IN';
   if (/^hi/i.test(langCode)) langCode = 'hi-IN';
   else if (/^en/i.test(langCode)) langCode = 'en-IN';
   else if (/^bn/i.test(langCode)) langCode = 'bn-IN';
@@ -101,7 +122,7 @@ export async function speakSarvam({ text, language = 'hi-IN', speaker = 'ritu', 
 
   // Check cache
   fs.mkdirSync(CACHE_DIR, { recursive: true });
-  const hash = crypto.createHash('sha256').update(`${cleanText}|${langCode}|${speaker}|${model}|${pace}`).digest('hex');
+  const hash = crypto.createHash('sha256').update(`${cleanText}|${langCode}|${validSpeaker}|${validModel}|${pace}`).digest('hex');
   const cacheFile = path.join(CACHE_DIR, `${hash}.wav`);
   if (fs.existsSync(cacheFile)) {
     try {
@@ -110,21 +131,22 @@ export async function speakSarvam({ text, language = 'hi-IN', speaker = 'ritu', 
     } catch {}
   }
 
+  const payload = {
+    inputs: [cleanText],
+    target_language_code: langCode,
+    speaker: validSpeaker,
+    model: validModel,
+    pace: typeof pace === 'number' ? Math.max(0.5, Math.min(2.0, pace)) : 1.0,
+    speech_sample_rate: 22050,
+  };
+
   const res = await fetch(`${SARVAM_API_BASE}/text-to-speech`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'api-subscription-key': k,
     },
-    body: JSON.stringify({
-      inputs: [cleanText],
-      target_language_code: langCode,
-      speaker: speaker || 'ritu',
-      model: model || 'bulbul:v1',
-      pace: typeof pace === 'number' ? Math.max(0.5, Math.min(2.0, pace)) : 1.0,
-      speech_sample_rate: 22050,
-      enable_preprocessing: true,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
@@ -151,7 +173,7 @@ export async function speakSarvam({ text, language = 'hi-IN', speaker = 'ritu', 
 }
 
 /** Assign Sarvam speakers to storyboard cast members. */
-export function assignSarvamSpeakers(parts, defaultSpeaker = 'ritu') {
+export function assignSarvamSpeakers(parts, defaultSpeaker = 'shubh') {
   const out = new Map();
   const taken = new Set();
 
@@ -179,10 +201,10 @@ export async function sarvamCast(storyboard, notes = []) {
   const s = loadSecrets();
   const narratorEdge = storyboard.voice?.voice || 'hi-IN-SwaraNeural';
   const lang = String(narratorEdge).slice(0, 2).toLowerCase() === 'en' ? 'en-IN' : 'hi-IN';
-  const isMaleNarrator = /Madhur|Prabhat|Andrew|Ryan|shubh|arvind|amartya|amrish/i.test(narratorEdge);
+  const isMaleNarrator = /Madhur|Prabhat|Andrew|Ryan|shubh|arvind|amartya|amrish|ratan|amit|rahul|manan|dev/i.test(narratorEdge);
 
-  const defaultNarratorSpeaker = s.voice?.sarvamSpeaker || (isMaleNarrator ? 'arvind' : 'ritu');
-  const model = s.voice?.sarvamModel || 'bulbul:v1';
+  const model = normalizeSarvamModel(s.voice?.sarvamModel);
+  const defaultNarratorSpeaker = s.voice?.sarvamSpeaker || (isMaleNarrator ? 'shubh' : 'priya');
 
   const parts = [{ key: '\u0000narrator', gender: isMaleNarrator ? 'm' : 'f', wanted: storyboard.voice?.narrator || defaultNarratorSpeaker }];
   const keyOf = new Map();

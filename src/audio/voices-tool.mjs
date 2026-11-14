@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadSecrets, updateSecrets, elevenKey, sarvamKey, voiceProvider } from '../secrets.mjs';
 import { account, library, clearLibraryCache, pickModel, findVoice, speak, scoreVoice, MODEL_PREFERENCE } from './elevenlabs.mjs';
-import { validateSarvamKey, SARVAM_MODELS, SARVAM_SPEAKERS, speakSarvam } from './sarvam.mjs';
+import { validateSarvamKey, normalizeSarvamModel, SARVAM_MODELS, SARVAM_SPEAKERS, speakSarvam } from './sarvam.mjs';
 
 const WHERE = 'Settings → Voices';
 const describe = (v) => `${v.name}: ${[v.gender, v.age.replace(/_/g, ' '), v.accent || v.language, v.useCase.replace(/_/g, ' ')].filter(Boolean).join(', ')}${v.tone ? ` (${v.tone})` : ''}`;
@@ -22,8 +22,8 @@ export async function voicesStatus() {
     sarvam: {
       connected: hasSarvam,
       keySaved: hasSarvam,
-      model: s.voice?.sarvamModel || 'bulbul:v1',
-      speaker: s.voice?.sarvamSpeaker || 'ritu',
+      model: normalizeSarvamModel(s.voice?.sarvamModel),
+      speaker: s.voice?.sarvamSpeaker || 'shubh',
     },
   };
 
@@ -85,8 +85,8 @@ export async function runVoicesTool(params = {}, { cwd = process.cwd() } = {}) {
 
       if (action === 'test') {
         const s = loadSecrets();
-        const speaker = params.voice || s.voice?.sarvamSpeaker || 'ritu';
-        const model = params.model || s.voice?.sarvamModel || 'bulbul:v1';
+        const speaker = params.voice || s.voice?.sarvamSpeaker || 'shubh';
+        const model = normalizeSarvamModel(params.model || s.voice?.sarvamModel);
         const text = String(params.text || 'नमस्ते! मैं Sarvam AI की आवाज़ हूँ। Hello from Sarvam AI.').slice(0, 200);
         const r = await speakSarvam({ text, speaker, model });
         const out = path.resolve(cwd, `voice-test-sarvam-${speaker}.wav`);

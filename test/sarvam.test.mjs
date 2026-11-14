@@ -26,6 +26,12 @@ const server = http.createServer(async (req, res) => {
   if (u.pathname === '/text-to-speech' && req.method === 'POST') {
     if (fail) return send(res, fail.status, fail.body);
     const j = JSON.parse(body);
+    if (j.model !== 'bulbul:v3' && j.model !== 'bulbul:v4-flash') {
+      return send(res, 400, {
+        message: "Validation Error(s):\n- model: Input should be 'bulbul:v3' or 'bulbul:v4-flash'",
+        code: 'invalid_request_error',
+      });
+    }
     seen.speak.push(j);
     return send(res, 200, {
       audios: [wavBuffer.toString('base64')],
@@ -60,7 +66,7 @@ after(() => {
   try { fs.rmSync(home, { recursive: true, force: true }); } catch {}
 });
 
-test('Sarvam key validation: rejects invalid key and accepts valid key', async () => {
+test('Sarvam key validation: rejects invalid key and accepts valid key on bulbul:v3', async () => {
   await assert.rejects(
     async () => { await sarvam.validateSarvamKey('wrong_key_12345678'); },
     /Sarvam AI returned HTTP 401/
@@ -78,13 +84,20 @@ test('voiceKeyCommand: saves Sarvam AI key and updates provider', async () => {
   assert.equal(r.data.provider, 'sarvam');
   assert.equal(r.data.sarvam.connected, true);
   assert.equal(r.data.sarvam.keySaved, true);
+  assert.equal(r.data.sarvam.model, 'bulbul:v3');
 });
 
 test('voiceKeyCommand: can switch models and speakers', async () => {
-  const r = await tool.voiceKeyCommand({ provider: 'sarvam', model: 'bulbul:v2', speaker: 'arvind' });
+  const r = await tool.voiceKeyCommand({ provider: 'sarvam', model: 'bulbul:v4-flash', speaker: 'shubh' });
   assert.equal(r.ok, true);
-  assert.equal(r.data.sarvam.model, 'bulbul:v2');
-  assert.equal(r.data.sarvam.speaker, 'arvind');
+  assert.equal(r.data.sarvam.model, 'bulbul:v4-flash');
+  assert.equal(r.data.sarvam.speaker, 'shubh');
+});
+
+test('legacy models (bulbul:v1, bulbul:v2) automatically normalize to bulbul:v3', async () => {
+  assert.equal(sarvam.normalizeSarvamModel('bulbul:v1'), 'bulbul:v3');
+  assert.equal(sarvam.normalizeSarvamModel('bulbul:v2'), 'bulbul:v3');
+  assert.equal(sarvam.normalizeSarvamModel('bulbul:v4-flash'), 'bulbul:v4-flash');
 });
 
 test('sarvamCast assigns speakers and generates speech in synthesize', async () => {
@@ -101,7 +114,7 @@ test('sarvamCast assigns speakers and generates speech in synthesize', async () 
 
   const cast = await sarvam.sarvamCast(storyboard);
   assert.ok(cast);
-  assert.equal(cast.model, 'bulbul:v2');
+  assert.equal(cast.model, 'bulbul:v4-flash');
   const narratorVoice = cast.narrator();
   assert.ok(narratorVoice.speaker);
   const lionVoice = cast.get('sher');
