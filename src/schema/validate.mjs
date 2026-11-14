@@ -10,9 +10,13 @@ import { STYLE_ALIASES, ART_STYLES, styleBase } from '../art/styles.mjs';
 import { FORMAT_TEMPLATES, DATA_TEMPLATES } from './spec.mjs';
 import { place as mapPlace, country as mapCountry, regionBox, cityNames } from '../art/maps.mjs';
 import { resolveIcon } from '../art/props.mjs';
-import { CAPTION_STYLES, CAPTION_POSITIONS, CAPTION_TIMINGS, LOOKS, CAMERAS, LINE_SHOTS, DESIGN, NEAR_PROPS, WEATHER } from './spec.mjs';
+import { CAPTION_STYLES, CAPTION_POSITIONS, CAPTION_TIMINGS, LOOKS, CAMERAS, LINE_SHOTS, DESIGN, NEAR_PROPS, WEATHER, LIGHTS } from './spec.mjs';
+// The 3D world has none of the plan-19 places yet: the nearest 3D place stands in.
+const PLACE_3D = { ashram: 'forest', palace: 'village', ghat: 'beach', kailash: 'mountains', cosmos: 'space', temple: 'village', battlefield: 'meadow', lanka: 'beach' };
 import { loadLibraryCharacter } from '../characters/library.mjs';
 import { KIND_ALIASES } from '../compiler/characters.mjs';
+// The kinds before plan 19 also match inside a longer word ("kitty-cat", "snowman"), as they always did.
+const OLD_KINDS = 21;
 import { BACKGROUND_ALIASES, TIME_ALIASES } from '../compiler/backgrounds.mjs';
 
 const POSE_ALIASES = { standing: 'idle', stand: 'idle', still: 'idle', waving: 'wave', hello: 'wave', walking: 'walk', running: 'walk', run: 'walk', jumping: 'jump', hop: 'jump', hopping: 'jump',
@@ -294,8 +298,13 @@ export function normalise(input, warnings) {
       if (o.kind === undefined) for (const k of ['type', 'animal', 'character', 'species']) if (o[k] !== undefined) { o.kind = o[k]; delete o[k]; break; }
       if (typeof o.kind === 'string') {
         const kk = key(o.kind);
-        const v = CHARACTER_KINDS.includes(kk) ? kk : KIND_ALIASES[kk] || CHARACTER_KINDS.find(x => kk.includes(x));
-        const pre = !v && KIND_PRESETS[kk] && o.design === undefined ? KIND_PRESETS[kk] : null;
+        // Whole words first ("lord-hanuman" → hanuman), so short names never match inside others ("ramesh" is not Ram).
+        const words = kk.split(/[-_\s]+/);
+        const v = CHARACTER_KINDS.includes(kk) ? kk : KIND_ALIASES[kk] || CHARACTER_KINDS.find(x => words.includes(x)) || words.map(w => KIND_ALIASES[w]).find(Boolean)
+          || CHARACTER_KINDS.slice(0, OLD_KINDS).find(x => kk.includes(x));
+        // In 3D the presets (cow, parrot, snake, peacock…) are better than the 2D mythology animals.
+        const myth2d = v && CHARACTER_KINDS.indexOf(v) >= OLD_KINDS;
+        const pre = (!v || (myth2d && sb.look === '3d')) && KIND_PRESETS[kk] && o.design === undefined ? KIND_PRESETS[kk] : null;
         if (pre) { warn(`cast[${i}].kind`, `"${o.kind}" is not a built-in kind; using "design": "preset:${pre}"`); o.design = `preset:${pre}`; delete o.kind; }
         else if (v && v !== o.kind) warn(`cast[${i}].kind`, `"${o.kind}" changed to "${v}"`);
         if (v && !pre) o.kind = v;
@@ -426,7 +435,12 @@ export function normalise(input, warnings) {
         if (typeof o.y === 'string' && !['ground', 'air'].includes(o.y)) o.y = /air|float|sky|up|top/.test(o.y) ? 'air' : 'ground';
         return [o];
       });
-      if (typeof s.background === 'string') { const v = aliasOf(s.background, BACKGROUNDS, BACKGROUND_ALIASES) || BACKGROUNDS.find(b => key(s.background).includes(b)); if (v && v !== s.background) { warn(`scenes[${i}].background`, `"${s.background}" changed to "${v}"`); s.background = v; } }
+      if (typeof s.background === 'string') { const v = aliasOf(s.background, BACKGROUNDS, BACKGROUND_ALIASES) || BACKGROUNDS.find(b => key(s.background).includes(b)); if (v && v !== s.background) { warn(`scenes[${i}].background`, `"${s.background}" changed to "${v}"`); s.background = v; }
+        if ((s.look || sb.look) === '3d' && PLACE_3D[s.background] && (s.template === 'story' || s.template === 'dialogue')) { warn(`scenes[${i}].background`, `"${s.background}" is 2D only; the 3D place "${PLACE_3D[s.background]}" is used`); s.background = PLACE_3D[s.background]; } }
+      if (typeof s.light === 'string' && !LIGHTS.includes(s.light.toLowerCase())) {
+        const l = s.light.toLowerCase(), v = /petal|flower|phool|blessing|pushp/.test(l) ? 'petals' : /spark|glitter|magic|star/.test(l) ? 'sparkles' : /divine|god|ray|glow|holy|halo|aura|heaven|light/.test(l) ? 'divine' : 'none';
+        warn(`scenes[${i}].light`, `"${s.light}" changed to "${v}"`); s.light = v;
+      }
       if (typeof s.look === 'string') { const v = aliasOf(s.look, LOOKS, LOOK_ALIASES); if (v && v !== s.look) { warn(`scenes[${i}].look`, `"${s.look}" changed to "${v}"`); s.look = v; } }
       if (typeof s.weather === 'string' && !WEATHER.includes(s.weather.toLowerCase())) {
         const w = s.weather.toLowerCase(), v = /bubble|glitter|star|magic|twinkl|diya|lights/.test(w) ? 'sparkles' : /storm|drizzle|shower/.test(w) ? 'rain' : /firefl|glow/.test(w) ? 'fireflies' : /autumn|fall/.test(w) ? 'leaves' : /winter|frost/.test(w) ? 'snow' : 'none';

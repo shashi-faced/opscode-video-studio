@@ -13,6 +13,7 @@ import { quietSpans } from './visemes.mjs';
 import { matchRate } from '../captions/align.mjs';
 import { voiceProvider } from '../secrets.mjs';
 import { library, pickModel, assignVoices, speak as elevenSpeak } from './elevenlabs.mjs';
+import { sarvamCast, speakSarvamCached } from './sarvam.mjs';
 import { loadSecrets } from '../secrets.mjs';
 
 /** Built-in (Edge) voice ids look like "hi-IN-SwaraNeural"; any other voice name belongs to ElevenLabs. */
@@ -208,8 +209,9 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
   const timing = storyboard.captions && typeof storyboard.captions === 'object' ? storyboard.captions.timing || 'auto' : 'auto';
   const lang = String(voice).slice(0, 2).toLowerCase();
   const notes = [];
-  // ElevenLabs when the user saved a key: a different, expressive voice for every character.
-  let eleven = await elevenCast(storyboard, notes);
+  // Sarvam AI when user chose it, or ElevenLabs when user saved an ElevenLabs key
+  let sarvam = await sarvamCast(storyboard, notes);
+  let eleven = !sarvam ? await elevenCast(storyboard, notes) : null;
   const usage = { characters: 0, cached: 0, clips: 0 };
   let listener;   // undefined: not checked yet; null: cannot listen
   const listen = async () => {
@@ -233,7 +235,16 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
       const v = p.kind === 'line' ? voices.get(p.who) : { voice, rate, pitch: null };
       // Narration timings drive captions; dialogue-line timings drive the speaker's mouth (lip-sync).
       let clip = null;
-      if (eleven) {
+      if (sarvam) {
+        try {
+          clip = await speakSarvamCached(sarvam, p.kind === 'line' ? sarvam.get(p.who) : sarvam.narrator(), p.text, usage);
+          usage.clips++;
+        } catch (e) {
+          notes.push(`Sarvam AI stopped (${e.message}); built-in voices were used for the rest`);
+          sarvam = null;
+        }
+      }
+      if (!clip && eleven) {
         try { clip = await speakElevenCached(eleven, p.kind === 'line' ? eleven.get(p.who) : eleven.narrator(), elevenText(p.text, eleven.model), usage); usage.clips++; }
         catch (e) { notes.push(`ElevenLabs stopped (${e.message}); the built-in voices were used for the rest`); eleven = null; }
       }
@@ -281,8 +292,13 @@ export async function synthesize(storyboard, { onProgress = () => {} } = {}) {
   out.notes = notes;
   // Who spoke: shown in the render result, so the agent can tell the user which voices were used.
   if (usage.clips) {
-    out.provider = 'elevenlabs';
-    out.voiceSummary = `${(eleven || { summary: () => 'ElevenLabs' }).summary()} (${usage.characters} characters billed${usage.cached ? `, ${usage.cached} clip(s) reused from cache` : ''})`;
+    if (sarvam) {
+      out.provider = 'sarvam';
+      out.voiceSummary = `${sarvam.summary()} (${usage.characters} characters billed${usage.cached ? `, ${usage.cached} clip(s) reused from cache` : ''})`;
+    } else {
+      out.provider = 'elevenlabs';
+      out.voiceSummary = `${(eleven || { summary: () => 'ElevenLabs' }).summary()} (${usage.characters} characters billed${usage.cached ? `, ${usage.cached} clip(s) reused from cache` : ''})`;
+    }
   } else out.provider = 'edge';
   return out;
 }

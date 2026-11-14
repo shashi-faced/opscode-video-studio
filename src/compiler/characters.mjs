@@ -6,6 +6,8 @@
 // Arms hang down from the shoulders; a positive rotation swings an arm toward the
 // viewer's left, a negative one toward the right.
 
+import { MYTH_KINDS, MYTH_ALIASES, mythSvg } from './myth.mjs';
+
 export const VIEWBOX = '-30 -50 260 350';
 // Moods only stickmen draw, shown as the nearest of the six cartoon faces.
 const MOOD_BASE = { shocked: 'surprised', frustrated: 'angry', sweating: 'worried', crying: 'sad', grin: 'happy', deflated: 'sad', suspicious: 'worried' };
@@ -36,6 +38,8 @@ export const KIND_INFO = {
   sun:      { plan: 'float', color: '#ffb627', gender: 'm', age: 'adult' },
   moon:     { plan: 'float', color: '#f3e7b0', gender: 'f', age: 'old' },
   cloud:    { plan: 'float', color: '#ffffff', gender: 'f', age: 'kid' },
+  // Mythology kit (myth.mjs, plan 19): era people, deities, animals of the stories.
+  ...Object.fromEntries(Object.entries(MYTH_KINDS).map(([k, v]) => [k, { plan: 'myth', color: v.look?.lower || '#e2552f', gender: v.gender, age: v.age, divine: !!v.divine }])),
 };
 
 export const KIND_ALIASES = {
@@ -47,6 +51,7 @@ export const KIND_ALIASES = {
   grandmother: 'grandma', dadi: 'grandma', nani: 'grandma', 'old-woman': 'grandma', granny: 'grandma',
   bot: 'robot', android: 'robot', tara: 'star', taara: 'star', sitara: 'star', suraj: 'sun', chand: 'moon', chanda: 'moon', badal: 'cloud',
 };
+for (const [a, k] of Object.entries(MYTH_ALIASES)) if (!(a in KIND_ALIASES) && a !== k) KIND_ALIASES[a] = k;
 
 // ---------- colour helpers ----------
 function rgb(hex) {
@@ -293,6 +298,8 @@ export function characterSvg(kind, o = {}, uid = 'c') {
   const P = painter(uid, o.flat || null);
   const mood = MOOD_BASE[o.mood] || o.mood || 'happy';
   const opts = { ...o, mood };
+  // Mythology figures: Madhubani patterns in the madhubani style (o.myth), plain fills elsewhere.
+  if (info.plan === 'myth') return mythSvg(kind, { mood, pose: o.pose, skin: o.myth || 'flat', uid, ink: o.flat?.ink });
   let body;
   switch (info.plan) {
     case 'human': body = human(kind, P, opts); break;

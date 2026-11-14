@@ -12,7 +12,7 @@ export const CAPTION_TIMINGS = ['auto', 'tts', 'whisper'];
 export const THEMES = ['night-saffron', 'clean-light', 'midnight-neon', 'corporate-blue', 'warm-paper', 'storybook', 'festive'];
 export const MASCOTS = ['robot', 'dev', 'founder'];
 export const MOODS = ['happy', 'worried'];
-export const MUSIC_STYLES = ['indian-electronic', 'corporate-upbeat', 'ambient', 'playful', 'festive', 'none'];
+export const MUSIC_STYLES = ['indian-electronic', 'corporate-upbeat', 'ambient', 'playful', 'festive', 'devotional', 'none'];
 
 // What kind of video this is. Each type has its own scene recipe, theme and music (see types.mjs).
 export const VIDEO_TYPES = ['ad', 'demo', 'explainer', 'story', 'reel', 'howto', 'greeting', 'announcement'];
@@ -22,6 +22,11 @@ export const CHARACTER_KINDS = [
   'boy', 'girl', 'man', 'woman', 'grandpa', 'grandma',
   'rabbit', 'cat', 'dog', 'bear', 'panda', 'fox', 'elephant', 'lion', 'mouse', 'owl',
   'robot', 'star', 'sun', 'moon', 'cloud',
+  // Mythology (plan 19): era people, deities in their traditional forms, animals of the stories.
+  'king', 'queen', 'prince', 'princess', 'rishi', 'rishika', 'soldier', 'villager', 'village-woman', 'young-rishi',
+  'ram', 'sita', 'lakshman', 'bharat', 'hanuman', 'krishna', 'radha', 'shiva', 'parvati', 'ganesha', 'durga', 'vishnu', 'lakshmi', 'brahma',
+  'shani', 'surya', 'indra', 'narada', 'ravana', 'asura', 'vanara',
+  'deer', 'cow', 'peacock', 'fish', 'snake', 'parrot', 'horse', 'swan',
 ];
 export const POSES = ['idle', 'wave', 'walk', 'jump', 'cheer', 'point', 'think', 'dance', 'sit', 'talk'];
 // 3D look (plan 12): how the scene is drawn and how the camera films it.
@@ -53,9 +58,13 @@ export const ENTRANCES = ['none', 'walk-in', 'pop', 'fly-in', 'fade'];
 export const SIZES = ['small', 'medium', 'large'];
 export const SKINS = ['light', 'medium', 'tan', 'dark'];
 // Illustrated scene backgrounds (backgrounds.mjs). Outdoor ones change with "time".
-export const BACKGROUNDS = ['meadow', 'forest', 'mountains', 'beach', 'village', 'city', 'sky', 'space', 'underwater', 'home', 'bedroom', 'classroom', 'office', 'festival'];
+export const BACKGROUNDS = ['meadow', 'forest', 'mountains', 'beach', 'village', 'city', 'sky', 'space', 'underwater', 'home', 'bedroom', 'classroom', 'office', 'festival',
+  // Places of the old Indian stories (mythPlaces.mjs, plan 19).
+  'ashram', 'palace', 'ghat', 'kailash', 'cosmos', 'temple', 'battlefield', 'lanka'];
+// 2D: light over a story scene (divine rays, falling petals, rising sparkles).
+export const LIGHTS = ['none', 'divine', 'petals', 'sparkles'];
 export const TIMES = ['day', 'sunset', 'night'];
-export const VOICE_PROVIDERS = ['edge', 'elevenlabs', 'none'];
+export const VOICE_PROVIDERS = ['edge', 'elevenlabs', 'sarvam', 'none'];
 export const TRANSITIONS = ['fade', 'slide', 'zoom', 'cut'];
 export const TAG_TONES = ['accent', 'ok', 'alert'];
 
@@ -208,6 +217,7 @@ export const TEMPLATES = {
       look: enm(LOOKS, { doc: '2d, 3d or stickman for this scene; normally set once at the top' }),
       props: list(prop, 6, { doc: 'stickman look: objects beside the characters (phone, money, clock…)' }),
       weather: enm(WEATHER, { doc: '3D only: rain, snow, leaves, fireflies, sparkles' }),
+      light: enm(LIGHTS, { doc: '2D: divine (light rays and glow, for a god appearing), petals (falling flowers, blessings), sparkles' }),
       camera: enm(CAMERAS, { doc: '3D only: wide, medium, close, two-shot, dolly-in, dolly-out, orbit, pan-left, pan-right, crane-up; default auto' }),
     },
     example: { template: 'story', background: 'meadow', time: 'night', characters: [{ who: 'miko', pose: 'wave', mood: 'surprised', position: 'left' }, { who: 'tara', enter: 'fly-in', mood: 'sad', position: 'right' }], narration: 'One night, Miko saw a little star fall into the grass.' },
@@ -222,6 +232,7 @@ export const TEMPLATES = {
       look: enm(LOOKS),
       props: list(prop, 6, { doc: 'stickman look: objects beside the characters' }),
       weather: enm(WEATHER),
+      light: enm(LIGHTS),
       camera: enm(CAMERAS, { doc: '3D only; default auto: medium shot, then a close-up on each speaker' }),
     },
     example: { template: 'dialogue', background: 'meadow', time: 'night', lines: [{ who: 'tara', text: 'I fell from the sky and cannot find my way home.', mood: 'sad' }, { who: 'miko', text: 'Do not worry! I will help you.', mood: 'happy' }] },

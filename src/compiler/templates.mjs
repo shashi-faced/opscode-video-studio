@@ -5,6 +5,9 @@ import { escapeHtml as esc, markup } from '../timeline.mjs';
 import { mascotSvg } from './mascots.mjs';
 import { characterSvg, CHARACTER_CSS, KIND_INFO } from './characters.mjs';
 import { stickSvg, STICK_CSS, baseMood } from './stick.mjs';
+import { MYTH_CSS } from './myth.mjs';
+import { mythBackgroundHtml, drawsPlace, lightHtml, MYTH_PLACE_CSS } from './mythPlaces.mjs';
+import { KIND_ALIASES } from './characters.mjs';
 import { sceneBackdrop, stickOptions, styleTheme } from '../art/styles.mjs';
 import { propsHtml, PROP_CSS } from '../art/props.mjs';
 import { backgroundHtml, BACKGROUND_CSS } from './backgrounds.mjs';
@@ -82,7 +85,7 @@ export function resolveWho(who, ctx) {
   const key = String(who || '').toLowerCase();
   const c = ctx.cast?.get(key);
   if (c) return { ...c, id: c.id, name: c.name || c.id };
-  const kind = KIND_INFO[key] ? key : 'rabbit';
+  const kind = KIND_INFO[key] ? key : KIND_INFO[KIND_ALIASES[key]] ? KIND_ALIASES[key] : 'rabbit';
   return { id: key, kind, name: key.charAt(0).toUpperCase() + key.slice(1) };
 }
 
@@ -106,6 +109,8 @@ function storyScene(sc, ctx) {
   let chars = placeCharacters(listed, ctx);
   // Stickmen are thin: drawn a little larger so faces read at phone size.
   if (!ctx.is3d?.(sc) && ctx.isStick?.(sc)) chars = chars.map(c => ({ ...c, s: +(c.s * 1.18).toFixed(3) }));
+  // Madhubani: figures are the picture, so they stand larger.
+  else if (!ctx.is3d?.(sc) && ctx.style?.myth) chars = chars.map(c => ({ ...c, s: +(c.s * 1.2).toFixed(3) }));
   const { ground, chh } = ctx.layout;
   // 3D look: the world module draws the place and the characters; this scene keeps its HTML text and bubbles.
   const is3d = ctx.is3d?.(sc);
@@ -134,7 +139,7 @@ function storyScene(sc, ctx) {
     const from = c.x < 50 ? 'calc(var(--u)*-115)' : 'calc(var(--u)*115)';
     const svg = stick && STICK_KINDS.has(c.who.kind)
       ? stickSvg(c.who.kind, { ...stick, mood, pose: c.pose || 'idle', color: c.who.color, id: c.who.id })
-      : characterSvg(c.who.kind, { mood, pose: c.pose || 'idle', color: c.who.color, hair: c.who.hair, skin: c.who.skin, flat: stick ? { ink: stick.ink } : flatInk ? { ink: flatInk } : null }, `c${ctx.index}_${k}`);
+      : characterSvg(c.who.kind, { mood, pose: c.pose || 'idle', color: c.who.color, hair: c.who.hair, skin: c.who.skin, flat: stick ? { ink: stick.ink } : flatInk ? { ink: flatInk } : null, myth: ctx.style?.myth || null }, `c${ctx.index}_${k}`);
     return `<div class="chwrap ${enter}" data-who="${esc(c.who.id)}" style="left:${c.x}%;--s:${c.s};--d:${(0.2 + k * 0.3).toFixed(2)}s;--from:${from};--blink:-${(k * 1.37).toFixed(2)}s"><div class="chflip${c.facing === 'left' ? ' flip' : ''}">${svg}</div></div>`;
   }).join('');
 
@@ -155,8 +160,11 @@ function storyScene(sc, ctx) {
     ? `<div class="storytitle">${sc.kicker ? fit('div', 'kicker a-up', esc(sc.kicker), sz('kicker', ctx), 1, 1.2, 0.1) : ''}${fit('h1', 'headline a-pop', markup(sc.headline), sz('stitle', ctx), 2, 1.04, 0.25)}${text}</div>` : '';
   const t = stick ? styleTheme(ctx.art, ctx.vary) : null;
   const props = is3d || !sc.props?.length ? '' : propsHtml(sc.props, { ink: t ? t.ink : '#2b2b33', accent: t ? t.accent : 'var(--accent)', accent2: t ? t.accent2 : 'var(--accent2)', ground: ctx.layout.ground, posX: POS_X[ctx.fi] });
-  const backdrop = is3d ? '' : stick ? sceneBackdrop(ctx.art, sc) : backgroundHtml(sc.background || 'meadow', sc.time || 'day');
-  return `<div class="in t-story no-scale${is3d ? ' w3d' : ''}${stick ? ' st-story' : ''}">${backdrop}${props}${charHtml}${bubbles}${title}${sc.headline ? '' : text}</div>`;
+  const place = sc.background || ctx.style?.defaultPlace || 'meadow', time = sc.time || 'day';
+  const backdrop = is3d ? '' : ctx.style?.myth && drawsPlace(place, ctx.style.myth) ? mythBackgroundHtml(place, time, ctx.style.myth)
+    : stick ? sceneBackdrop(ctx.art, sc) : backgroundHtml(place, time);
+  const light = is3d ? '' : lightHtml(sc.light);
+  return `<div class="in t-story no-scale${is3d ? ' w3d' : ''}${stick ? ' st-story' : ''}">${backdrop}${light}${props}${charHtml}${bubbles}${title}${sc.headline ? '' : text}</div>`;
 }
 
 export const TEMPLATE_HTML = {
@@ -325,6 +333,8 @@ html.ovl #w3d,html.ovl .amb,html.ovl .prog i{visibility:hidden !important}
 .f-1x1 .t-steps.no-vis{grid-template-rows:auto 1fr}
 ${CHARACTER_CSS}
 ${STICK_CSS}
+${MYTH_CSS}
+${MYTH_PLACE_CSS}
 ${PROP_CSS}
 ${BACKGROUND_CSS}
 

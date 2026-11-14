@@ -7,6 +7,7 @@
 // the set of styles. No channel names, no copied media.
 import { LOOKS2, LOOK2_ALIASES, looksCss } from './looks2.mjs';
 import { backgroundHtml } from '../compiler/backgrounds.mjs';
+import { MADHUBANI_STYLE, MADHUBANI_ALIASES, madhuCss } from './madhubani.mjs';
 
 const PAPER_GRID = (paper, line) => `linear-gradient(${line} 1px,transparent 1px) 0 0/calc(var(--u)*5.9) calc(var(--u)*5.9),linear-gradient(90deg,${line} 1px,transparent 1px) 0 0/calc(var(--u)*5.9) calc(var(--u)*5.9),${paper}`;
 
@@ -138,7 +139,7 @@ const NEW_STYLES = {
     accents: [['#ff7a45', '#2fa4c7'], ['#7f5af0', '#2cb67d'], ['#f2b134', '#3d7dd8'], ['#e5484d', '#2fa4c7']],
   },
 };
-Object.assign(STYLES, NEW_STYLES, LOOKS2);
+Object.assign(STYLES, NEW_STYLES, LOOKS2, { madhubani: MADHUBANI_STYLE });
 
 
 export const ART_STYLES = Object.keys(STYLES);
@@ -293,6 +294,7 @@ function extraCss(id, s, t, sel, v) {
     out.push('@keyframes docu-push{from{transform:scale(1.02)}to{transform:scale(1.1)}}');
   }
   if (s.look2) out.push(looksCss(s, t, sel));
+  if (s.myth === 'madhubani') out.push(madhuCss(s, t, sel));
   if (s.flat) {
     out.push(`${sel} .amb{display:none}`);
     out.push(`${sel} .frame{box-shadow:none;border-radius:calc(var(--u)*1.2);border:calc(var(--u)*.3) solid var(--ink)}`);
@@ -306,5 +308,5 @@ function extraCss(id, s, t, sel, v) {
   return out.join('\n');
 }
 // Plan 18 M5 looks (horror now means the horror look, not the survival thriller).
-Object.assign(STYLE_ALIASES, LOOK2_ALIASES);
+Object.assign(STYLE_ALIASES, LOOK2_ALIASES, MADHUBANI_ALIASES);
 Object.assign(STYLE_ALIASES, { clay: 'clay', claymation: 'clay', plasticine: 'clay', 'clay 3d': 'clay', 'clay animation': 'clay', 'stop-motion clay': 'clay', 'low poly': 'low-poly', lowpoly: 'low-poly', 'low-poly 3d': 'low-poly', polygon: 'low-poly', faceted: 'low-poly', geometric: 'low-poly' });

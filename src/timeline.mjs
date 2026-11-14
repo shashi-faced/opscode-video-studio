@@ -164,7 +164,7 @@ export function buildTimeline(storyboard, voiceLengths = [], partLengths = [], n
       const span = narrPart.end - narrPart.start;
       words = alignWords(toks, narrationWords[i] || null, span).map(([a, b], k) => [toks[k].html, +(narrPart.start + a).toFixed(3), +(narrPart.start + b).toFixed(3)]);
     }
-    scenes.push({ index: i, template: sc.template, start, end, duration: +duration.toFixed(3), voiceStart, voiceLength: measured ?? null, estimated: measured == null && parts.length > 0, captions, parts: timed, ...(words ? { words } : {}) });
+    scenes.push({ index: i, template: sc.template, ...(sc.light && sc.light !== 'none' ? { light: sc.light } : {}), start, end, duration: +duration.toFixed(3), voiceStart, voiceLength: measured ?? null, estimated: measured == null && parts.length > 0, captions, parts: timed, ...(words ? { words } : {}) });
     t += duration;
   });
   return { duration: +t.toFixed(3), fps: storyboard.fps || 30, scenes };

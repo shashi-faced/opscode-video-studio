@@ -72,6 +72,23 @@ export function synthMusic(timeline, { style = 'indian-electronic', seed = 7 } =
     for (let i = 0; i < n; i++) { const t = i / SR; o[i] = Math.sin(TAU * f * t) * e[i] + 0.45 * Math.sin(TAU * f * 3.98 * t) * e2[i]; } return o; };
   const bell = (m) => { const n = Math.round(1.2 * SR), o = new Float32Array(n), f = hz(m), e = env(n, 0.001, 0.5);
     for (let i = 0; i < n; i++) { const t = i / SR; o[i] = (Math.sin(TAU * f * t) + 0.5 * Math.sin(TAU * f * 2.76 * t) + 0.25 * Math.sin(TAU * f * 5.4 * t)) * e[i]; } return o; };
+  // Bansuri: a breathy sine with a soft 2nd and 3rd partial, slow attack and a late vibrato.
+  const flute = (m, dur) => { const n = Math.round(dur * SR), o = new Float32Array(n), f = hz(m), br = lp(noise(n), 1800);
+    let ph = 0;
+    for (let i = 0; i < n; i++) { const t = i / SR, vib = 1 + 0.006 * Math.min(1, Math.max(0, t - 0.25) / 0.3) * Math.sin(TAU * 5.2 * t);
+      ph += TAU * f * vib / SR; const e = Math.min(1, t / 0.07) * Math.min(1, (dur - t) / 0.12);
+      o[i] = (Math.sin(ph) + 0.18 * Math.sin(2 * ph) + 0.06 * Math.sin(3 * ph) + 0.35 * br[i]) * Math.max(0, e); } return o; };
+  // Temple bell: long ring with inharmonic partials and a slow beat between two close ones.
+  const templeBell = (() => { const n = Math.round(4 * SR), o = new Float32Array(n), f = 520;
+    for (let i = 0; i < n; i++) { const t = i / SR; o[i] = (Math.sin(TAU * f * t) + 0.7 * Math.sin(TAU * (f + 2.3) * t) + 0.55 * Math.sin(TAU * f * 2.41 * t) + 0.3 * Math.sin(TAU * f * 3.9 * t) * Math.exp(-t / 0.4) + 0.2 * Math.sin(TAU * f * 5.5 * t) * Math.exp(-t / 0.15)) * Math.min(1, t / 0.002) * Math.exp(-t / 1.4); } return o; })();
+  // Manjira: two small cymbals, a bright ring.
+  const manjira = (() => { const n = Math.round(0.9 * SR), o = new Float32Array(n), h = hiss(n, 4000);
+    for (let i = 0; i < n; i++) { const t = i / SR; o[i] = (0.6 * Math.sin(TAU * 2650 * t) + 0.5 * Math.sin(TAU * 3910 * t) + 0.4 * Math.sin(TAU * 5320 * t) + 0.3 * h[i]) * Math.min(1, t / 0.001) * Math.exp(-t / 0.28); } return o; })();
+  // Shankh (conch): a reedy horn that bends up into the note and swells.
+  const shankh = (() => { const dur = 2.4, n = Math.round(dur * SR), o = new Float32Array(n), br = lp(noise(n), 2500); let ph = 0;
+    for (let i = 0; i < n; i++) { const t = i / SR, f = 233 * (1 - 0.06 * Math.exp(-t / 0.18)) * (1 + 0.004 * Math.sin(TAU * 4.6 * t)); ph += TAU * f / SR;
+      let s = 0; for (let k = 1; k <= 7; k++) s += Math.sin(k * ph) / (k * 0.9); o[i] = (Math.tanh(1.6 * s) + 0.15 * br[i]) * Math.min(1, t / 0.35) * Math.min(1, (dur - t) / 0.5); }
+    return lp(o, 2200); })();
   const pad = (notes, dur) => { const n = Math.round(dur * SR), o = new Float32Array(n);
     for (let i = 0; i < n; i++) { const t = i / SR; let s = 0; for (const m of notes) s += Math.sin(TAU * hz(m) * t) + 0.3 * Math.sin(TAU * hz(m) * 2.003 * t); o[i] = s * Math.min(1, t / 0.3, (dur - t) / 0.3); } return o; };
 
@@ -87,6 +104,8 @@ export function synthMusic(timeline, { style = 'indian-electronic', seed = 7 } =
     playful: { bpm: 108, prog: [[36, [60, 64, 67]], [43, [59, 62, 67]], [45, [60, 64, 69]], [41, [60, 65, 69]]] },
     // Celebration: brighter, faster cousin of indian-electronic in a major key, with bells.
     festive: { bpm: 118, prog: [[38, [62, 66, 69]], [43, [62, 67, 71]], [45, [61, 64, 69]], [38, [62, 66, 69]]] },
+    // Bhakti / katha (plan 19): tanpura, bansuri in Khamaj, soft keherwa tabla, temple bells, shankh.
+    devotional: { bpm: 72, prog: [[38, [62, 66, 69]], [43, [62, 67, 71]], [36, [60, 64, 67]], [38, [62, 66, 69]]] },
   }[style] || null;
   if (!cfg) return [L, R];
   const B = 60 / cfg.bpm, BAR = 4 * B;
@@ -150,6 +169,38 @@ export function synthMusic(timeline, { style = 'indian-electronic', seed = 7 } =
     const answer = [[69, 0, 0], [71, 1, 0], [69, 2, 0], [66, 3, 0], [67, 4, 2], [66, 6, 0], [64, 7, 0], [66, 8, 0], [64, 9, 0], [62, 10, 0], [64, 11, 2], [62, 13, 0]];
     let ph = 0;
     for (let p0 = FULL; p0 < FIN - 0.1; p0 += 2 * BAR, ph++) for (const [m, st, bd] of ph % 2 ? answer : motif) { const t = p0 + st * B / 2; if (t < FIN) add(pluck(m, 0.9, bd), t, 0.13, 0.25); }
+  } else if (style === 'devotional') {
+    // Tanpura all through (Pa Sa Sa Sa), a shankh to open, a temple bell every two bars.
+    for (let t0 = 0; t0 < T - 1; t0 += BAR) [[45, -0.4], [50, 0.3], [50, 0.1], [38, -0.1]].forEach(([m, p], j) => add(tanpura(m), t0 + j * B, 0.04, p));
+    add(shankh, 0.05, 0.16, -0.1);
+    for (let t0 = 0; t0 < FIN - 0.5; t0 += 2 * BAR) add(templeBell, t0 + (t0 ? 0 : 0.9), 0.07, 0.35);
+    // Soft keherwa from the first cut, a little stronger in the second half (the reveal and the lesson).
+    const pat = ['dha', 'ge', 'na', 'tin', 'na', 'ka', 'dhi', 'na'];
+    for (const b0 of bars) {
+      if (b0 < FULL - 1e-6) continue;
+      const g = b0 > FIN * 0.55 ? 1 : 0.7;
+      pat.forEach((st, k) => {
+        const t0 = b0 + k * B / 2;
+        if (st === 'dha' || st === 'dhi') add(DHA, t0, 0.32 * g, -0.2);
+        else if (st === 'ge') add(GE, t0, 0.26 * g, -0.3);
+        else if (st === 'tin') add(tin, t0, 0.14 * g, 0.3);
+        else add(na, t0, (st === 'ka' ? 0.08 : 0.18) * g, 0.25);
+      });
+      for (const s of [0, 2]) add(manjira, b0 + s * B, 0.05 * g, 0.45);
+    }
+    // Bansuri phrases (Khamaj: Sa Re Ga Ma Pa Dha ni Sa' on D), [note, start beat, beats], call and answer.
+    const call = [[74, 0, 1.5], [76, 1.5, 0.5], [78, 2, 1], [79, 3, 1], [81, 4, 2], [79, 6, 0.5], [78, 6.5, 0.5], [76, 7, 1]];
+    const answer = [[81, 0, 1], [83, 1, 0.5], [84, 1.5, 0.5], [83, 2, 1], [81, 3, 1], [79, 4, 1], [78, 5, 1], [74, 6, 2]];
+    let ph = 0;
+    for (let p0 = Math.min(FULL, 2 * BAR) - 2 * B; p0 < FIN - 0.6; p0 += 2 * BAR, ph++) {
+      for (const [m, st, len] of ph % 2 ? answer : call) { const t = p0 + st * B; if (t < FIN - 0.3) add(flute(m, len * B * 1.05), Math.max(0, t), 0.11, 0.15); }
+    }
+    // Divine moments (scenes with light "divine" or "petals"): a cascade of small bells and a soft swell.
+    for (const sc of timeline.scenes) if (sc.light === 'divine' || sc.light === 'petals') {
+      [86, 90, 93, 98].forEach((m, k) => add(bell(m), sc.start + 0.05 + k * 0.09, 0.05, k % 2 ? 0.4 : -0.4));
+      const n = Math.round(1.6 * SR), sw = new Float32Array(n); for (let i = 0; i < n; i++) { const t = i / SR; let s = 0; for (const m of [62, 69, 74, 78]) s += Math.sin(TAU * hz(m) * t); sw[i] = s * Math.sin(Math.PI * i / n) ** 2; }
+      add(sw, sc.start, 0.03);
+    }
   } else if (style === 'corporate-upbeat') {
     for (const b0 of bars) {
       const full = b0 >= FULL - 1e-6;
@@ -172,11 +223,11 @@ export function synthMusic(timeline, { style = 'indian-electronic', seed = 7 } =
   // bass + pad on every style
   bars.forEach((b0, bi) => {
     const [root, ch] = cfg.prog[bi % 4];
-    if (b0 >= FULL - 1e-6 && style !== 'ambient') for (const dt of [0, 1.5, 2, 3]) add(bassNote(root), b0 + dt * B, 0.2);
-    add(pad(ch, BAR), b0, style === 'ambient' ? 0.05 : 0.03);
+    if (b0 >= FULL - 1e-6 && style !== 'ambient' && style !== 'devotional') for (const dt of [0, 1.5, 2, 3]) add(bassNote(root), b0 + dt * B, 0.2);
+    add(pad(ch, BAR), b0, style === 'ambient' ? 0.05 : style === 'devotional' ? 0.022 : 0.03);
   });
   if (style !== 'ambient') {
-    for (const c of cuts) add(whoosh, c - 0.45, 0.2);
+    for (const c of cuts) add(whoosh, c - 0.45, style === 'devotional' ? 0.08 : 0.2);
     const n = Math.round(1.8 * SR), x = noise(n); const y = lp(x, i => 300 + 4000 * (i / n) ** 2); for (let i = 0; i < n; i++) y[i] *= (i / n) ** 2;
     add(y, FULL - 1.8, 0.28);
   }
@@ -186,7 +237,8 @@ export function synthMusic(timeline, { style = 'indian-electronic', seed = 7 } =
     const chord = style === 'corporate-upbeat' ? [36, 48, 52, 55, 60, 64] : [38, 50, 54, 57, 62, 66];
     for (let i = 0; i < n; i++) { const t = i / SR; let s = 0; for (const m of chord) s += Math.sin(TAU * hz(m) * t) + 0.25 * Math.sin(TAU * hz(m) * 2 * t); o[i] = s * Math.min(1, t / 0.05) * Math.exp(-t / 3.2); }
     add(o, FIN, 0.07);
-    if (style !== 'ambient') { add(kick, FIN, 0.8); add(BAY, FIN, 0.6); }
+    if (style === 'devotional') { add(templeBell, FIN, 0.12, 0); add(shankh, FIN + 0.2, 0.14, 0.1); add(BAY, FIN, 0.4); }
+    else if (style !== 'ambient') { add(kick, FIN, 0.8); add(BAY, FIN, 0.6); }
     const fl = style === 'corporate-upbeat' ? [60, 64, 67, 72] : [62, 66, 69, 74];
     fl.forEach((m, k) => add(pluck(m, 1.6, 0, style === 'indian-electronic'), FIN + 0.05 + k * 0.12, 0.15, 0.2));
     if (style === 'indian-electronic') for (let t0 = FIN + 4 * B; t0 < T - 1.5; t0 += 2 * B) add(BAY, t0, 0.13);

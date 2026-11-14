@@ -5,6 +5,8 @@
 // Characters stand on the ground line GROUND_Y. Keep important art inside y ≥ 700 and
 // x 350–1250 so it shows in every format. Moving parts are CSS animations (seekable).
 
+import { MYTH_PLACES, MYTH_PLACE_ALIASES, mythBackgroundHtml } from './mythPlaces.mjs';
+
 export const ART = 1600;
 export const GROUND_Y = 1420;
 
@@ -24,6 +26,7 @@ export const BACKGROUND_ALIASES = {
   workplace: 'office', desk: 'office', startup: 'office', meeting: 'office',
   diwali: 'festival', celebration: 'festival', party: 'festival', holi: 'festival', eid: 'festival', christmas: 'festival', 'new-year': 'festival', birthday: 'festival', fireworks: 'festival',
 };
+for (const [a, p] of Object.entries(MYTH_PLACE_ALIASES)) if (!(a in BACKGROUND_ALIASES)) BACKGROUND_ALIASES[a] = p;
 export const TIME_ALIASES = { morning: 'day', noon: 'day', afternoon: 'day', daytime: 'day', evening: 'sunset', dusk: 'sunset', dawn: 'sunset', sunrise: 'sunset', midnight: 'night', nighttime: 'night', dark: 'night' };
 
 // Deterministic pseudo-random numbers so renders never change between runs.
@@ -188,6 +191,7 @@ export const BACKGROUND_CSS = `
 
 /** Full-bleed background markup for a scene. */
 export function backgroundHtml(name, time = 'day') {
+  if (MYTH_PLACES.includes(name)) return mythBackgroundHtml(name, time, 'flat');
   const fn = BG[name] || BG.meadow;
   const t = PAL[time] ? time : 'day';
   const id = `bg${uidCounter++}`;

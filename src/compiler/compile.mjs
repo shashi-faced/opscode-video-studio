@@ -9,6 +9,7 @@ import { PLATFORMS, safePixels } from '../schema/platforms.mjs';
 import { resolveTheme, themeCss, fontFiles } from './themes.mjs';
 import { styleTheme, styleCss, STYLES, styleBase } from '../art/styles.mjs';
 import { variety, entranceCss, flatDecor } from '../art/variety.mjs';
+import { madhuDecor } from '../art/madhubani.mjs';
 import { looksDecor, looksDefs } from '../art/looks2.mjs';
 import { HAND_SVG } from './draw.mjs';
 import { TEMPLATE_HTML, TEMPLATE_CSS } from './templates.mjs';
@@ -87,7 +88,7 @@ export function compile(storyboard, timeline, { baseDir, buildDir, progress = tr
       tl: timeline.scenes[i], dur: timeline.scenes[i]?.duration || 4, style, styleId, vary, theme };
     const inner = TEMPLATE_HTML[sc.template](sc, ctx);
     const tr = sc.transition || (vary ? vary.transitions[i % vary.transitions.length] : 'fade');
-    const decor = style?.flat ? flatDecor(vary, i, theme) : style?.look2 ? looksDecor(style, vary, i, theme, sc, FORMAT_INDEX[storyboard.format]) : '';
+    const decor = style?.flat ? flatDecor(vary, i, theme) : style?.myth === 'madhubani' ? madhuDecor(vary, i, theme, stage, sc) : style?.look2 ? looksDecor(style, vary, i, theme, sc, FORMAT_INDEX[storyboard.format]) : '';
     return `<section class="scene tr-${tr}" data-i="${i}" style="--sd:${(timeline.scenes[i]?.duration || 4).toFixed(2)}s">${decor}${inner}</section>`;
   }).join('\n');
 

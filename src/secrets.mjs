@@ -29,10 +29,14 @@ export function updateSecrets(fn) {
 
 // OPSCODE_IGNORE_SAVED_VOICE_KEY (set by the test runner) keeps tests away from the user's own key and credits.
 export const elevenKey = () => String(process.env.OPSCODE_ELEVENLABS_KEY || (process.env.OPSCODE_IGNORE_SAVED_VOICE_KEY ? '' : loadSecrets().elevenlabs?.apiKey) || '').trim();
+export const sarvamKey = () => String(process.env.OPSCODE_SARVAM_KEY || (process.env.OPSCODE_IGNORE_SAVED_VOICE_KEY ? '' : loadSecrets().sarvam?.apiKey) || '').trim();
 
-/** Which voice service to use: 'elevenlabs' when a key is saved and the user did not switch back, else 'edge'. */
+/** Which voice service to use: 'sarvam' | 'elevenlabs' | 'edge'. */
 export function voiceProvider() {
   const s = loadSecrets();
   if (s.voice?.provider === 'edge') return 'edge';
+  if (s.voice?.provider === 'sarvam') return sarvamKey() ? 'sarvam' : (elevenKey() ? 'elevenlabs' : 'edge');
+  if (s.voice?.provider === 'elevenlabs') return elevenKey() ? 'elevenlabs' : (sarvamKey() ? 'sarvam' : 'edge');
+  if (sarvamKey()) return 'sarvam';
   return elevenKey() ? 'elevenlabs' : 'edge';
 }
