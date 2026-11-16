@@ -103,3 +103,12 @@ test('devotional music: tanpura, flute and bells, never silent or broken, cues o
   const tl = buildTimeline(validate(FORMAT_RECIPES.katha.example).storyboard);
   assert.equal(tl.scenes[3].light, 'divine');
 });
+
+test('the agent guide (video_templates) teaches katha, madhubani, the figures, places and light', async () => {
+  const { templatesDoc } = await import('../src/docs.mjs');
+  for (const args of [['reel', null, null, 'katha'], ['story'], []]) {
+    const doc = templatesDoc(...args);
+    for (const k of ['madhubani', 'devotional', 'hanuman', 'ashram']) assert.ok(doc.includes(k), `${args.join(',')}: ${k}`);
+  }
+  assert.ok(templatesDoc('reel', null, null, 'katha').includes('Recipe for "katha"'));
+});

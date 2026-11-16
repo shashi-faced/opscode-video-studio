@@ -1,6 +1,6 @@
 # Plan 19: Mythology stories (Ramayana, Mahabharata, Puranas) in Madhubani and devotional-cartoon styles
 
-Status: planned 2026-11-14. Nothing built. Three decisions are needed (§9).
+Status: P1–P5 built and released in v0.20.0 (2026-11-17): mythology kit, places and divine light, style `madhubani`, format `katha`, `devotional` music. Open: P0 (match the reel's voice once the file is shared), P6 (devotional look, image-model pictures), P7 (gallery tile, eval), and more than 16 scenes per video.
 
 ## 1. Goal
 
