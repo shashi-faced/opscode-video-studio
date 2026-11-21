@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { findFfmpeg } from '../deps/locate.mjs';
 import { launchBrowser } from '../render/browser.mjs';
 import { writeCaptionPage, captionStates } from './page.mjs';
+import { withThreadCap } from '../render/load.mjs';
 
 function userError(message, fix) { const e = new Error(message); e.fix = fix; return e; }
 
@@ -36,7 +37,7 @@ export function probeVideo(file) {
 
 function runFfmpeg(args, { onTime, total } = {}) {
   return new Promise((resolve, reject) => {
-    const p = spawn(findFfmpeg(), args);
+    const p = spawn(findFfmpeg(), withThreadCap(args));
     let err = '';
     p.stderr.on('data', d => {
       err += d; if (err.length > 20000) err = err.slice(-10000);

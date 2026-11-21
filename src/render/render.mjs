@@ -9,6 +9,7 @@ import { MAX_CHARS } from '../captions/group.mjs';
 import { synthesize } from '../audio/tts.mjs';
 import { buildMusic, mixToWav } from '../audio/mix.mjs';
 import { openBuild, launchBrowser, gpuWorks, UserError } from './browser.mjs';
+import { renderBudget, threadArgs, lowerPriority, thermalPacer } from './load.mjs';
 import { findFfmpeg } from '../deps/locate.mjs';
 import { PLATFORMS } from '../schema/platforms.mjs';
 import { execFileSync } from 'node:child_process';
@@ -84,6 +85,8 @@ export function sceneAt(timeline, t) {
   return i === -1 ? timeline.scenes.length : i + 1;
 }
 
+const loadNotes = (budget, pacer) => [...budget.notes, ...(pacer.stats.pauses ? [`paused ${pacer.stats.pausedSeconds} s in ${pacer.stats.pauses} break(s) to let the computer cool down (hottest: ${pacer.stats.peak?.sensor} ${pacer.stats.peak?.temp} °C)`] : [])];
+
 export async function render(storyboardFile, { out, fps, workers, onProgress = () => {}, voice = 'auto' } = {}) {
   const t0 = Date.now();
   const ffmpeg = findFfmpeg();
@@ -111,8 +114,14 @@ export async function render(storyboardFile, { out, fps, workers, onProgress = (
   const lowres = build.has3d && !gpu;
   // Several Chrome workers each render a chunk of frames when the GPU does the drawing (3D);
   // 2D and software drawing are CPU-bound, so they keep one worker unless asked.
-  let nWorkers = Math.max(1, Math.min(8, workers || (build.has3d && gpu ? Math.min(4, Math.max(1, Math.floor(os.cpus().length / 2))) : 1)));
+  const wanted = build.has3d && gpu ? Math.min(4, Math.max(1, Math.floor(os.cpus().length / 2))) : 1;
+  const budget = renderBudget({ requested: workers ? Math.min(8, workers) : undefined, wanted });
+  let nWorkers = budget.workers;
   if (splitParts || frames < fps * 8) nWorkers = 1;
+  // Encoder threads: the budget was split over budget.workers; one worker may use all of it.
+  const threads = budget.threads > 0 ? budget.threads * Math.max(1, Math.floor(budget.workers / nWorkers)) : 0;
+  lowerPriority();
+  const pacer = thermalPacer({ onPause: (st) => onProgress({ stage: 'cooling', sensor: st.sensor, temp: st.temp, limit: st.limit }) });
 
   let poster = null;
   // Cover/thumbnail: the first scene once its entry animations have settled.
@@ -143,12 +152,13 @@ export async function render(storyboardFile, { out, fps, workers, onProgress = (
     const args = ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-'];
     if (audio.hasAudio) args.push('-i', audio.file, '-map', '0:v', '-map', '1:a', '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11', '-ar', '48000', '-c:a', 'aac', '-b:a', '192k');
     if (splitParts) args.push('-force_key_frames', `expr:gte(t,n_forced*${plat.splitSec})`);
-    args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(fps), '-t', String(timeline.duration), '-movflags', '+faststart', outFile);
+    args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '18', ...threadArgs(threads), '-pix_fmt', 'yuv420p', '-r', String(fps), '-t', String(timeline.duration), '-movflags', '+faststart', outFile);
     const enc = encoder(args);
     const sess = await openBuild(build.file, build.stage, { gpu, lowres });
     try {
       for (let f = 0; f < frames; f++) {
         const ms = (f * 1000) / fps;
+        await pacer.pace();
         const buf = await sess.grab(ms, 92);
         await enc.write(buf);
         if (!poster && ms >= posterAt) { poster = path.join(outDir, 'poster.jpg'); fs.writeFileSync(poster, buf); }
@@ -171,13 +181,14 @@ export async function render(storyboardFile, { out, fps, workers, onProgress = (
     const segs = await Promise.all(chunks.map(async ([a, b], w) => {
       const seg = path.join(p.buildDir, `chunk-${w}.mp4`);
       const enc = encoder(['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-', '-an',
-        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(fps), '-frames:v', String(b - a), seg]);
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', ...threadArgs(threads), '-pix_fmt', 'yuv420p', '-r', String(fps), '-frames:v', String(b - a), seg]);
       const browser = await launchBrowser({ gpu });
       try {
         const sess = await openBuild(build.file, build.stage, { shared: browser, gpu, lowres });
         try {
           for (let f = a; f < b; f++) {
             const ms = (f * 1000) / fps;
+            await pacer.pace();
             const buf = await sess.grab(ms, 92);
             await enc.write(buf);
             if (w === 0 && !poster && ms >= posterAt) { poster = path.join(outDir, 'poster.jpg'); fs.writeFileSync(poster, buf); }
@@ -234,6 +245,9 @@ export async function render(storyboardFile, { out, fps, workers, onProgress = (
     scenes: timeline.scenes.map(s => ({ template: s.template, start: s.start, duration: s.duration })),
     warnings: p.warnings,
     workers: nWorkers,
+    encoderThreads: threads || 'auto',
+    ...(loadNotes(budget, pacer).length ? { loadNotes: loadNotes(budget, pacer) } : {}),
+    cooling: pacer.stats,
     gpu,
     has3d: !!build.has3d,
     renderFps: +((timeline.duration * fps) / Math.max(1, (Date.now() - t0) / 1000)).toFixed(1),

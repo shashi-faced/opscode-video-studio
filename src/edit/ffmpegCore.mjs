@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { findFfmpeg } from '../deps/locate.mjs';
+import { withThreadCap } from '../render/load.mjs';
 
 export class VideoError extends Error {
   constructor(message, fix) {
@@ -58,7 +59,7 @@ export function formatSeconds(secs) {
 export async function execFfmpeg(args, { onProgress = () => {}, cwd = process.cwd() } = {}) {
   const ffmpeg = getFfmpegBin();
   return new Promise((resolve, reject) => {
-    const ff = spawn(ffmpeg, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const ff = spawn(ffmpeg, withThreadCap(args), { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
     ff.stderr.on('data', (chunk) => {
       const text = chunk.toString();

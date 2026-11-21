@@ -25,10 +25,12 @@ import { findFfmpeg } from '../deps/locate.mjs';
 import { slug, outDirFor } from '../pipeline.mjs';
 import { writeSubtitles } from '../captions/formats.mjs';
 import { MAX_CHARS } from '../captions/group.mjs';
+import { renderBudget, threadArgs, lowerPriority, thermalPacer } from '../render/load.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const ENGINE_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
 
+// Unlimited default (OPSCODE_VIDEO_LOAD=full); renderBudget caps it to spare the computer.
 export const defaultWorkers = () => Math.max(1, Math.min(6, os.cpus().length - 2));
 
 const sha = (...parts) => { const h = crypto.createHash('sha256'); for (const p of parts) h.update(typeof p === 'string' ? p : JSON.stringify(p)); return h.digest('hex'); };
@@ -57,10 +59,10 @@ function shiftScene(sc, off) {
 }
 
 /** Render one shot's frames into a silent H.264 segment. */
-async function renderSegment({ ffmpeg, browser, shot, fps, onFrames, gpu }) {
+async function renderSegment({ ffmpeg, browser, shot, fps, onFrames, gpu, threads = 0, pace = async () => {} }) {
   const tmp = path.join(shot.dir, 'segment.tmp.mp4');
   const args = ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-',
-    '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(fps), '-frames:v', String(shot.frames), tmp];
+    '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', ...threadArgs(threads), '-pix_fmt', 'yuv420p', '-r', String(fps), '-frames:v', String(shot.frames), tmp];
   const ff = spawn(ffmpeg, args, { stdio: ['pipe', 'ignore', 'pipe'] });
   let ffErr = '';
   ff.stderr.on('data', d => { ffErr += d; });
@@ -69,6 +71,7 @@ async function renderSegment({ ffmpeg, browser, shot, fps, onFrames, gpu }) {
   const sess = await openBuild(shot.build.file, shot.build.stage, { shared: browser, lowres: !!shot.build.has3d && !gpu });
   try {
     for (let f = 0; f < shot.frames; f++) {
+      await pace();
       const buf = await sess.grab((f * 1000) / fps, 92);
       if (!ff.stdin.write(buf)) await new Promise(r => ff.stdin.once('drain', r));
       if (f === Math.min(shot.frames - 1, Math.round(fps * 1.2))) fs.writeFileSync(path.join(shot.dir, 'thumb.jpg'), buf);
@@ -130,7 +133,10 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
   }
   const { storyboard: sb, shots: shotRefs, sequences } = v;
   fps = fps || sb.fps || 30;
-  workers = Math.max(1, Math.min(16, workers || defaultWorkers()));
+  const budget = renderBudget({ requested: workers ? Math.min(16, workers) : undefined, wanted: defaultWorkers() });
+  workers = budget.workers;
+  lowerPriority();
+  const pacer = thermalPacer({ onPause: (st) => onProgress({ stage: 'cooling', sensor: st.sensor, temp: st.temp, limit: st.limit }) });
   const baseDir = path.dirname(path.resolve(filmFile));
   const projectDir = outDirFor(filmFile, sb);
   const projectFile = path.join(projectDir, 'project.json');
@@ -218,7 +224,7 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
         const started = Date.now();
         project.shots[shot.id].status = 'rendering';
         try {
-          await renderSegment({ ffmpeg, browser: browsers[w], shot, fps, gpu, onFrames: (n) => { framesDone += n; } });
+          await renderSegment({ ffmpeg, browser: browsers[w], shot, fps, gpu, threads: budget.threads, pace: pacer.pace, onFrames: (n) => { framesDone += n; } });
           writeJson(path.join(shot.dir, 'segment.json'), { hash: shot.hash, frames: shot.frames, fps, seconds: shot.seconds, renderedAt: new Date().toISOString() });
           Object.assign(project.shots[shot.id], { status: 'done', renderSeconds: +((Date.now() - started) / 1000).toFixed(1), error: undefined });
         } catch (e) {
@@ -316,6 +322,8 @@ export async function renderFilm(filmFile, { out, fps, workers, voice = 'auto', 
     rendered: todo.length,
     cached: shots.filter(s => s.cached).length,
     workers,
+    ...(budget.notes.length || pacer.stats.pauses ? { loadNotes: [...budget.notes, ...(pacer.stats.pauses ? [`paused ${pacer.stats.pausedSeconds} s in ${pacer.stats.pauses} break(s) to let the computer cool down`] : [])] } : {}),
+    cooling: pacer.stats,
     gpu,
     voice: voiceNote || (voices.some(Boolean) ? sb.voice?.voice || 'on' : 'none'),
     sizeMB: +(fs.statSync(outFile).size / 1048576).toFixed(2),
